@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="Circular South Korea flag icon">
+  <defs>
+    <clipPath id="clipCircleKR">
+      <circle cx="512" cy="512" r="500"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#clipCircleKR)">
+    <rect width="1024" height="1024" fill="#FFFFFF"/>
+
+    <g transform="translate(512 512)">
+      <circle cx="0" cy="0" r="148" fill="#CD2E3A"/>
+      <path d="M -148 0
+               A 148 148 0 0 0 148 0
+               A 74 74 0 0 1 0 0
+               A 74 74 0 0 0 -148 0 Z" fill="#0047A0"/>
+      <circle cx="0" cy="-74" r="74" fill="#CD2E3A"/>
+      <circle cx="0" cy="74" r="74" fill="#0047A0"/>
+    </g>
+
+    <g fill="#000000">
+      <g transform="translate(294 300) rotate(-33)">
+        <rect x="-82" y="-54" width="164" height="22" rx="2"/>
+        <rect x="-82" y="-11" width="164" height="22" rx="2"/>
+        <rect x="-82" y="32" width="164" height="22" rx="2"/>
+      </g>
+
+      <g transform="translate(730 300) rotate(33)">
+        <rect x="-82" y="-54" width="164" height="22" rx="2"/>
+        <rect x="-82" y="-11" width="58" height="22" rx="2"/>
+        <rect x="24" y="-11" width="58" height="22" rx="2"/>
+        <rect x="-82" y="32" width="164" height="22" rx="2"/>
+      </g>
+
+      <g transform="translate(294 724) rotate(33)">
+        <rect x="-82" y="-54" width="58" height="22" rx="2"/>
+        <rect x="24" y="-54" width="58" height="22" rx="2"/>
+        <rect x="-82" y="-11" width="164" height="22" rx="2"/>
+        <rect x="-82" y="32" width="58" height="22" rx="2"/>
+        <rect x="24" y="32" width="58" height="22" rx="2"/>
+      </g>
+
+      <g transform="translate(730 724) rotate(-33)">
+        <rect x="-82" y="-54" width="58" height="22" rx="2"/>
+        <rect x="24" y="-54" width="58" height="22" rx="2"/>
+        <rect x="-82" y="-11" width="58" height="22" rx="2"/>
+        <rect x="24" y="-11" width="58" height="22" rx="2"/>
+        <rect x="-82" y="32" width="58" height="22" rx="2"/>
+        <rect x="24" y="32" width="58" height="22" rx="2"/>
+      </g>
+    </g>
+  </g>
+</svg>
