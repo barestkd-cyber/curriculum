@@ -3655,10 +3655,8 @@ function showUserMenu(){
     currentUser = null;
     currentRole = null;
     isAdmin = false;
-    const btn = document.getElementById('authBtn');
-    if(btn){ btn.textContent = 'Sign In'; btn.onclick = handleAuthBtn; }
-    const lockBtn = document.getElementById('adminLockBtn');
-    if(lockBtn){ lockBtn.textContent = '🔒'; lockBtn.style.opacity = '0.35'; }
+    document.getElementById('curr-login').style.display = 'flex';
+    document.getElementById('curr-loading').style.display = 'none';
   }
 }
 
