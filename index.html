@@ -381,6 +381,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://portal.barestkd.fit/shared/auth.js?v=1"></script>
 <script>
 // ─── BELT COLORS ─────────────────────────────────────────────
 const BELT_COLORS = {
@@ -2543,17 +2544,10 @@ function closeTechModal(e) {
 }
 
 // ─── SUPABASE ────────────────────────────────────────────────
-const SUPABASE_URL = 'https://akdncbzxiwvihfcyijvm.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_uSGIk4_Tt1_BOmPBoC_U5A_Kp2032f5';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: {
-    storageKey: 'barestkd-auth',
-    storage: window.localStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
-  }
-});
+// Auth + the Supabase client now come from the shared module (window.BTKD),
+// loaded via shared/auth.js. Reuse its client so existing sb.from(...) calls
+// keep working through the one canonical, shared session.
+const sb = BTKD.sb;
 
 const ADMIN_PASSWORD = 'BaresTKD2026';
 let isAdmin = false;
@@ -3542,32 +3536,20 @@ let currentUser = null;
 let currentRole = null;
 
 async function initAuth(){
-  // Check for password recovery token in URL hash
-  const hash = window.location.hash;
-  if(hash && hash.includes('type=recovery')){
-    const params = new URLSearchParams(hash.replace('#',''));
-    const accessToken = params.get('access_token');
-    const refreshToken = params.get('refresh_token');
-    if(accessToken && refreshToken){
-      await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-      window.history.replaceState({}, document.title, window.location.pathname);
-      document.getElementById('curr-loading').style.display = 'none';
-      document.getElementById('new-password-modal').style.display = 'flex';
-      return;
-    }
-  }
+  // Password recovery link? The shared module establishes the session and we
+  // surface the new-password modal; stop normal init when it takes over.
+  const recovering = await BTKD.initResetHandler({ onRecovery: () => {
+    document.getElementById('curr-loading').style.display = 'none';
+    document.getElementById('new-password-modal').style.display = 'flex';
+  }});
+  if(recovering) return;
 
-  const urlParams = new URLSearchParams(window.location.search);
-  const tokenFromPortal = urlParams.get('token');
-  const refreshFromPortal = urlParams.get('refresh');
-  if(tokenFromPortal && refreshFromPortal){
-    await sb.auth.setSession({ access_token: tokenFromPortal, refresh_token: refreshFromPortal });
-    window.history.replaceState({}, document.title, window.location.pathname);
-  }
+  // Launched from the portal with a session in the URL? Adopt it.
+  await BTKD.pickupSessionFromURL();
 
-  const { data } = await sb.auth.getSession();
-  if(data?.session?.user){
-    currentUser = data.session.user;
+  const session = await BTKD.getSession();
+  if(session?.user){
+    currentUser = session.user;
     await loadUserProfile();
     showCurrApp();
   } else {
@@ -3583,12 +3565,11 @@ async function submitNewPassword(){
   err.style.display = 'none';
   if(!pw || pw.length < 6){ err.textContent = 'Password must be at least 6 characters.'; err.style.display = 'block'; return; }
   if(pw !== confirm){ err.textContent = 'Passwords do not match.'; err.style.display = 'block'; return; }
-  const { error } = await sb.auth.updateUser({ password: pw });
-  if(error){ err.textContent = 'Error updating password. Please try again.'; err.style.display = 'block'; return; }
+  const { user, error } = await BTKD.completePasswordReset(pw);
+  if(error){ err.textContent = error; err.style.display = 'block'; return; }
   alert('Password updated! You are now signed in.');
   document.getElementById('new-password-modal').style.display = 'none';
-  const { data } = await sb.auth.getSession();
-  currentUser = data.session.user;
+  currentUser = user;
   await loadUserProfile();
   showCurrApp();
 }
@@ -3612,10 +3593,8 @@ async function submitPasswordReset(){
   err.style.display = 'none';
   success.style.display = 'none';
   if(!email){ err.style.display = 'block'; return; }
-  const { error } = await sb.auth.resetPasswordForEmail(email, {
-    redirectTo: 'https://curriculum.barestkd.fit'
-  });
-  if(error){ err.textContent = 'Error sending reset email. Please try again.'; err.style.display = 'block'; return; }
+  const { error } = await BTKD.sendPasswordReset(email, 'https://curriculum.barestkd.fit');
+  if(error){ err.textContent = error; err.style.display = 'block'; return; }
   success.style.display = 'block';
   setTimeout(() => document.getElementById('pw-reset-modal').classList.remove('active'), 3000);
 }
@@ -3625,9 +3604,9 @@ async function doCurrLogin(){
   const pw = document.getElementById('curr-password').value;
   const err = document.getElementById('curr-login-err');
   err.style.display = 'none';
-  const {data, error} = await sb.auth.signInWithPassword({email, password: pw});
+  const { user, error } = await BTKD.signIn({ email, password: pw });
   if(error){ err.style.display='block'; return; }
-  currentUser = data.user;
+  currentUser = user;
   await loadUserProfile();
   showCurrApp();
 }
@@ -3701,9 +3680,9 @@ async function doAuthSignin(){
   const pw = document.getElementById('authPassword').value;
   const err = document.getElementById('authError');
   err.style.display = 'none';
-  const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
-  if(error){ err.textContent = 'Incorrect email or password.'; err.style.display = 'block'; return; }
-  currentUser = data.user;
+  const { user, error } = await BTKD.signIn({ email, password: pw });
+  if(error){ err.textContent = error; err.style.display = 'block'; return; }
+  currentUser = user;
   closeAuthModal();
   await loadUserProfile();
 }
@@ -3716,26 +3695,17 @@ async function doAuthSignup(){
   const err = document.getElementById('authSignupError');
   err.style.display = 'none';
 
-  if(!name||!email||!pw){ err.textContent = 'All fields required.'; err.style.display = 'block'; return; }
-  if(pw.length < 6){ err.textContent = 'Password must be at least 6 characters.'; err.style.display = 'block'; return; }
-  if(pw !== confirm){ err.textContent = 'Passwords do not match.'; err.style.display = 'block'; return; }
+  const { user, error } = await BTKD.signUp({ name, email, password: pw, confirm });
+  if(error){ err.textContent = error; err.style.display = 'block'; return; }
 
-  // Check allowed_emails
-  const { data: allowed } = await sb.rpc('is_email_allowed', { check_email: email });
-  if(!allowed){ err.textContent = 'Your email is not on file with BaresTKD. Contact your instructor.'; err.style.display = 'block'; return; }
-
-  const { data, error } = await sb.auth.signUp({ email, password: pw, options: { data: { full_name: name } } });
-  if(error){ err.textContent = error.message; err.style.display = 'block'; return; }
-
-  await sb.from('profiles').upsert({ id: data.user.id, email, name, role: 'student' });
-  currentUser = data.user;
+  currentUser = user;
   closeAuthModal();
   await loadUserProfile();
 }
 
 function showUserMenu(){
   if(confirm('Sign out of BaresTKD?')){
-    sb.auth.signOut();
+    BTKD.signOut();
     currentUser = null;
     currentRole = null;
     isAdmin = false;
