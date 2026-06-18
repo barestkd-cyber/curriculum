@@ -1317,6 +1317,45 @@ const BELTS = [
     rotation: null, cycleNote: null,
   },
 ];
+
+function getStripeId(stripe, beltName){
+  if (stripe && stripe.id) return stripe.id;           // explicit override always wins
+  var L = ((stripe && stripe.label) || '').toLowerCase();
+  if (L.indexOf('self defense') >= 0 || L.indexOf('self-defense') >= 0) return 'self-defense';
+  if (L.indexOf('power combo') >= 0)    return 'power-combo';
+  if (L.indexOf('mitt combo') >= 0)     return 'mitt-combo';
+  if (L.indexOf('sparring combo') >= 0) return 'sparring-combo';
+  if (L.indexOf('board breaking') >= 0) return 'board-breaking';
+  if (L.indexOf('one step #1') >= 0)    return 'one-step-1';
+  if (L.indexOf('one step #2') >= 0)    return 'one-step-2';
+  if (L.indexOf('new techniques') >= 0) return 'new-techniques';
+  if (L.indexOf('kick') >= 0)           return 'kicks';
+  if (L.indexOf('form') >= 0)           return 'form';
+  var slug = function(s){ return (s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); };
+  return slug(beltName) + '--' + slug(L);              // per-belt placeholder for everything else
+}
+
+function stripeCatalog(){
+  var map = {};
+  BELTS.forEach(function(b){
+    var st = b.stripes || {};
+    ['black','colored'].forEach(function(g){
+      (st[g]||[]).forEach(function(s){
+        var id = getStripeId(s, b.name);
+        if(!map[id]) map[id] = { labels:{}, belts:[] };
+        map[id].labels[s.label] = true;
+        if(map[id].belts.indexOf(b.name) < 0) map[id].belts.push(b.name);
+      });
+    });
+  });
+  Object.keys(map).sort().forEach(function(id){
+    console.log(id, '| belts:', map[id].belts.length, '| labels:', Object.keys(map[id].labels).join(' / '));
+  });
+  return map;
+}
+
+window.getStripeId = getStripeId;
+window.stripeCatalog = stripeCatalog;
 const GROUPS = [...new Set(BELTS.map(b=>b.group))];
 
 // ─── FILTER TABS ─────────────────────────────────────────────
