@@ -393,6 +393,10 @@
 #curr-sched-grid .class-cell.dur-short .cell-program{font-size:11px;line-height:1.05;}
 #curr-sched-grid .class-cell.dur-short .cell-time{font-size:9px;margin-bottom:1px;}
 #curr-sched-grid .class-cell.dur-short .cell-belt{font-size:8px;}
+/* center each cell's text vertically (module pins it to the top) */
+#curr-sched-grid .class-cell{justify-content:center !important;}
+/* close the border box — the grid only draws top + right otherwise */
+#curr-sched-grid{border-left:1px solid var(--grid-line);border-bottom:1px solid var(--grid-line);}
 </style>
 <script>
 // ─── BELT COLORS ─────────────────────────────────────────────
