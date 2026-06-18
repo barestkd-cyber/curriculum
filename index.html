@@ -438,6 +438,15 @@
   }
   #curr-print-area .cell-instructor, #curr-print-area .cell-unassigned-lbl{ display:none; }
   #curr-print-area .class-cell{ justify-content:center; }
+  /* close the border box (the grid only draws top + right on its own) */
+  #curr-print-area .btkd-grid-root{ border-left:1px solid var(--grid-line); border-bottom:1px solid var(--grid-line); }
+  /* compact cell text so it isn't squished at the print scale */
+  #curr-print-area .cell-program{ font-size:12px; line-height:1.05; }
+  #curr-print-area .cell-time{ font-size:9px; }
+  #curr-print-area .cell-belt{ font-size:8px; }
+  #curr-print-area .class-cell.dur-short .cell-program{ font-size:10px; }
+  #curr-print-area .class-cell.dur-short .cell-time{ font-size:8px; margin-bottom:1px; }
+  #curr-print-area .class-cell.dur-short .cell-belt{ font-size:7px; }
 }
 </style>
 <script>
