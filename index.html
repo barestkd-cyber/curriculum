@@ -382,7 +382,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://portal.barestkd.fit/shared/auth.js?v=2"></script>
-<script src="https://portal.barestkd.fit/shared/schedule-grid.js?v=2"></script>
+<script src="https://portal.barestkd.fit/shared/schedule-grid.js?v=3"></script>
 <script>
 // ─── BELT COLORS ─────────────────────────────────────────────
 const BELT_COLORS = {
@@ -2353,7 +2353,8 @@ async function hydrateByDaySchedule(){
     isInteractive: () => false,
     weekStart: BTKDGrid.getWeekStart(0),
     mode: 'light',
-    canAssign: false
+    canAssign: false,
+    pxPerMin: 1.1
   });
 }
 
