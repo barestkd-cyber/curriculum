@@ -2157,6 +2157,9 @@ function renderEvents() {
 
   // ── CLASS SCHEDULE ─────────────────────────────────────────
   // ── BY TIME OF DAY TABLE
+  // The hardcoded table below is the fallback; hydrateByDaySchedule() replaces
+  // the #byDaySchedule contents with the live schedule_template when rows exist.
+  html += '<div id="byDaySchedule">';
   html += '<div style="font-family:Bebas Neue,sans-serif;font-size:1rem;letter-spacing:3px;color:#c9920a;margin-bottom:8px;">By Day</div>';
   html += '<div style="font-size:0.65rem;color:#888;margin-bottom:6px;font-style:italic;">Updated January 2026</div>';
   html += '<div style="overflow-x:auto;margin-bottom:20px;">'
@@ -2225,6 +2228,7 @@ function renderEvents() {
     + '</tr>'
     + '</tbody></table></div>'
     ;
+  html += '</div>'; // close #byDaySchedule
 
   // ── BY PROGRAM TABLE
   html += '<div style="font-family:Bebas Neue,sans-serif;font-size:1rem;letter-spacing:3px;color:#c9920a;margin-bottom:6px;">By Program</div>';
@@ -2311,6 +2315,55 @@ function renderEvents() {
 
 
   main.innerHTML = html;
+  hydrateByDaySchedule();
+}
+
+// Replace the hardcoded By Day fallback with the live schedule that classplan
+// publishes into schedule_template. Read-only; Mon–Sat columns, one row per
+// distinct time sorted by time_h/time_m, showing time, label, and belt. If
+// nothing is published yet (zero rows) or the query fails, the hardcoded
+// fallback already rendered into #byDaySchedule is left untouched.
+async function hydrateByDaySchedule(){
+  const box = document.getElementById('byDaySchedule');
+  if(!box) return;
+  let rows;
+  try {
+    const { data, error } = await BTKD.sb.from('schedule_template').select('*');
+    if(error) return;
+    rows = data || [];
+  } catch(e){ return; }
+  if(!rows.length) return;
+
+  const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const DAYS = ['MON','TUES','WED','THUR','FRI','SAT'];
+  const timeLabel = {};
+  rows.forEach(r => { const k = r.time_h*60 + r.time_m; if(!(k in timeLabel)) timeLabel[k] = r.time; });
+  const times = Object.keys(timeLabel).map(Number).sort((a,b)=>a-b);
+
+  let h = '<div style="font-family:Bebas Neue,sans-serif;font-size:1rem;letter-spacing:3px;color:#c9920a;margin-bottom:8px;">By Day</div>'
+    + '<div style="overflow-x:auto;margin-bottom:20px;">'
+    + '<table style="width:100%;border-collapse:collapse;font-size:0.72rem;min-width:420px;">'
+    + '<thead><tr style="background:#1a3a6b;color:white;"><th style="padding:6px 4px;text-align:center;">TIME</th>';
+  DAYS.forEach(d => h += '<th style="padding:6px 4px;text-align:center;">'+d+'</th>');
+  h += '</tr></thead><tbody>';
+  times.forEach((t,i) => {
+    h += '<tr style="background:'+(i%2 ? '#fffbf0' : '#fff')+';">'
+      + '<td style="padding:5px 4px;text-align:center;font-weight:700;border:1px solid #e8e0cc;">'+esc(timeLabel[t])+'</td>';
+    for(let day=0; day<6; day++){
+      const cls = rows.find(r => r.day===day && (r.time_h*60 + r.time_m)===t);
+      if(cls){
+        h += '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#c8102e;font-weight:700;font-size:0.65rem;">'
+          + esc(cls.label)
+          + (cls.belt ? '<br><span style="color:#111;font-weight:400;">'+esc(cls.belt)+'</span>' : '')
+          + '</td>';
+      } else {
+        h += '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;"></td>';
+      }
+    }
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  box.innerHTML = h;
 }
 
 
