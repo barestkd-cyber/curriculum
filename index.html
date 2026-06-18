@@ -382,6 +382,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://portal.barestkd.fit/shared/auth.js?v=2"></script>
+<script src="https://portal.barestkd.fit/shared/schedule-grid.js?v=1"></script>
 <script>
 // ─── BELT COLORS ─────────────────────────────────────────────
 const BELT_COLORS = {
@@ -2334,36 +2335,26 @@ async function hydrateByDaySchedule(){
   } catch(e){ return; }
   if(!rows.length) return;
 
-  const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const DAYS = ['MON','TUES','WED','THUR','FRI','SAT'];
-  const timeLabel = {};
-  rows.forEach(r => { const k = r.time_h*60 + r.time_m; if(!(k in timeLabel)) timeLabel[k] = r.time; });
-  const times = Object.keys(timeLabel).map(Number).sort((a,b)=>a-b);
+  const schedule = rows.map(r => ({
+    day: r.day, time: r.time, timeH: r.time_h, timeM: r.time_m,
+    label: r.label, belt: r.belt, progCss: r.prog_css,
+    defaultInstructor: r.default_instructor, duration: r.duration
+  }));
 
-  let h = '<div style="font-family:Bebas Neue,sans-serif;font-size:1rem;letter-spacing:3px;color:#c9920a;margin-bottom:8px;">By Day</div>'
-    + '<div style="overflow-x:auto;margin-bottom:20px;">'
-    + '<table style="width:100%;border-collapse:collapse;font-size:0.72rem;min-width:420px;">'
-    + '<thead><tr style="background:#1a3a6b;color:white;"><th style="padding:6px 4px;text-align:center;">TIME</th>';
-  DAYS.forEach(d => h += '<th style="padding:6px 4px;text-align:center;">'+d+'</th>');
-  h += '</tr></thead><tbody>';
-  times.forEach((t,i) => {
-    h += '<tr style="background:'+(i%2 ? '#fffbf0' : '#fff')+';">'
-      + '<td style="padding:5px 4px;text-align:center;font-weight:700;border:1px solid #e8e0cc;">'+esc(timeLabel[t])+'</td>';
-    for(let day=0; day<6; day++){
-      const cls = rows.find(r => r.day===day && (r.time_h*60 + r.time_m)===t);
-      if(cls){
-        h += '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#c8102e;font-weight:700;font-size:0.65rem;">'
-          + esc(cls.label)
-          + (cls.belt ? '<br><span style="color:#111;font-weight:400;">'+esc(cls.belt)+'</span>' : '')
-          + '</td>';
-      } else {
-        h += '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;"></td>';
-      }
-    }
-    h += '</tr>';
+  box.innerHTML =
+    '<div style="font-family:Bebas Neue,sans-serif;font-size:1rem;letter-spacing:3px;color:#c9920a;margin-bottom:8px;">By Day</div>'
+    + '<div style="overflow-x:auto;margin-bottom:20px;"><div id="curr-sched-grid"></div></div>';
+
+  BTKDGrid.inject();
+  BTKDGrid.render({
+    container: document.getElementById('curr-sched-grid'),
+    schedule,
+    getCell: () => ({ instructor:'', status:'none', shared:false }),
+    isInteractive: () => false,
+    weekStart: BTKDGrid.getWeekStart(0),
+    mode: 'light',
+    canAssign: false
   });
-  h += '</tbody></table></div>';
-  box.innerHTML = h;
 }
 
 
