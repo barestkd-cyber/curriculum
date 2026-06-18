@@ -383,6 +383,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://portal.barestkd.fit/shared/auth.js?v=2"></script>
 <script src="https://portal.barestkd.fit/shared/schedule-grid.js?v=3"></script>
+<style>
+/* Curriculum's read-only By Day grid: no instructor/unassigned row, slightly smaller text */
+#curr-sched-grid .cell-instructor,#curr-sched-grid .cell-unassigned-lbl{display:none;}
+#curr-sched-grid .cell-program{font-size:14px;}
+#curr-sched-grid .cell-time{font-size:10px;}
+#curr-sched-grid .cell-belt{font-size:9px;}
+</style>
 <script>
 // ─── BELT COLORS ─────────────────────────────────────────────
 const BELT_COLORS = {
@@ -2354,7 +2361,7 @@ async function hydrateByDaySchedule(){
     weekStart: BTKDGrid.getWeekStart(0),
     mode: 'light',
     canAssign: false,
-    pxPerMin: 1.1
+    pxPerMin: 1.4
   });
 }
 
