@@ -420,6 +420,25 @@
 #planViewOverlay .pv-desc{font-size:.85rem;color:#333;line-height:1.5;margin-top:6px;}
 #planViewOverlay .pv-video{display:inline-block;margin-top:8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-size:.78rem;color:#c8102e;text-decoration:none;}
 #planViewOverlay .pv-video:hover{text-decoration:underline;}
+
+/* ── Print: white background everywhere, portrait, two schedules per page ── */
+#curr-print-area{display:none;}
+@media print {
+  @page{ size: portrait; margin: 0.5in; }
+  body > *:not(#curr-print-area){ display:none !important; }
+  #curr-print-area{ display:block; }
+  .cps-block{ page-break-inside:avoid; margin-bottom:0.45in; text-align:center; }
+  .cps-header{ font-family:'Bebas Neue',sans-serif; font-size:22pt; letter-spacing:3px; color:#000; }
+  .cps-sub{ font-family:'Bebas Neue',sans-serif; font-size:9pt; letter-spacing:4px; color:#555; margin:2px 0 10px; }
+  /* force all grid backgrounds white and lines black by overriding the scoped tokens */
+  #curr-print-area .btkd-grid-root{
+    --grid-bg:#ffffff; --bg-none:#ffffff; --bg-unassigned:#ffffff;
+    --bg-draft:#ffffff; --bg-sub:#ffffff; --bg-rev:#ffffff; --bg-resub:#ffffff;
+    --grid-line:#000000; --grid-muted:#333333;
+  }
+  #curr-print-area .cell-instructor, #curr-print-area .cell-unassigned-lbl{ display:none; }
+  #curr-print-area .class-cell{ justify-content:center; }
+}
 </style>
 <script>
 // ─── BELT COLORS ─────────────────────────────────────────────
@@ -2390,8 +2409,14 @@ async function hydrateByDaySchedule(){
   }));
 
   box.innerHTML =
-    '<div style="font-family:Bebas Neue,sans-serif;font-size:1rem;letter-spacing:3px;color:#c9920a;margin-bottom:8px;">By Day</div>'
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+    + '<div style="font-family:Bebas Neue,sans-serif;font-size:1rem;letter-spacing:3px;color:#c9920a;">By Day</div>'
+    + '<button onclick="printCurrSchedule()" style="font-family:\'Bebas Neue\',sans-serif;letter-spacing:1px;font-size:.8rem;background:#c8102e;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;">&#9113; Print</button>'
+    + '</div>'
     + '<div style="overflow-x:auto;margin-bottom:20px;"><div id="curr-sched-grid"></div></div>';
+
+  const weekStart = currStudentWeekStart();
+  _currGridState = { schedule, weekStart };
 
   BTKDGrid.inject();
   BTKDGrid.render({
@@ -2404,7 +2429,7 @@ async function hydrateByDaySchedule(){
     },
     isInteractive: cell => !!cell.shared,
     onCellClick: openSharedPlanView,
-    weekStart: currStudentWeekStart(),
+    weekStart,
     mode: 'light',
     canAssign: false,
     pxPerMin: 1.4
@@ -2473,6 +2498,40 @@ function openSharedPlanView(entry){
 function closeSharedPlanView(){
   const ov = document.getElementById('planViewOverlay');
   if (ov) ov.style.display = 'none';
+}
+
+// Last-rendered grid data, reused by the print view.
+let _currGridState = null;
+
+// Print: re-render the schedule twice into a hidden print area, each with a
+// header. @media print forces white backgrounds, black lines, portrait.
+function printCurrSchedule(){
+  if (!_currGridState) return;
+  let area = document.getElementById('curr-print-area');
+  if (area) area.remove();
+  area = document.createElement('div');
+  area.id = 'curr-print-area';
+  document.body.appendChild(area);
+  for (let i = 0; i < 2; i++) {
+    const block = document.createElement('div');
+    block.className = 'cps-block';
+    block.innerHTML = '<div class="cps-header">BARES TAEKWONDO FITNESS</div><div class="cps-sub">Weekly Class Schedule</div>';
+    const gridDiv = document.createElement('div');
+    block.appendChild(gridDiv);
+    area.appendChild(block);
+    BTKDGrid.render({
+      container: gridDiv,
+      schedule: _currGridState.schedule,
+      getCell: () => ({ instructor:'', status:'none', shared:false }),
+      isInteractive: () => false,
+      onCellClick: () => {},
+      weekStart: _currGridState.weekStart,
+      mode: 'light',
+      canAssign: false,
+      pxPerMin: 1.2
+    });
+  }
+  window.print();
 }
 
 
