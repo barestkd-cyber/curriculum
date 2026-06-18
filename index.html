@@ -397,6 +397,29 @@
 #curr-sched-grid .class-cell{justify-content:center !important;}
 /* close the border box — the grid only draws top + right otherwise */
 #curr-sched-grid{border-left:1px solid var(--grid-line);border-bottom:1px solid var(--grid-line);}
+/* shared cells are clickable — hint it */
+#curr-sched-grid .class-cell.is-interactive{cursor:pointer;}
+
+/* ── Shared class-plan viewer (student run view, no instructor notes) ── */
+#planViewOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1100;align-items:center;justify-content:center;padding:16px;}
+#planViewOverlay .pv-card{background:#fff;color:#111;border-radius:14px;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;box-shadow:0 14px 44px rgba(0,0,0,.32);}
+#planViewOverlay .pv-head{position:sticky;top:0;background:#fff;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 18px 12px;border-bottom:1px solid #e8e0cc;}
+#planViewOverlay .pv-title{font-family:'Bebas Neue',sans-serif;font-size:1.35rem;letter-spacing:1px;color:#c8102e;line-height:1.12;}
+#planViewOverlay .pv-when{display:block;font-family:'Bebas Neue',sans-serif;font-size:.8rem;letter-spacing:1.5px;color:#888;margin-top:2px;}
+#planViewOverlay .pv-close{background:none;border:none;font-size:22px;line-height:1;color:#999;cursor:pointer;padding:0 2px;}
+#planViewOverlay .pv-body{padding:16px 18px 26px;}
+#planViewOverlay .pv-focus{background:#fff8e7;border:1px solid #ecdca6;border-radius:8px;padding:12px 14px;margin-bottom:14px;}
+#planViewOverlay .pv-focus-lbl{font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:.78rem;color:#c9920a;margin-bottom:4px;}
+#planViewOverlay .pv-focus-text{font-size:.95rem;color:#222;line-height:1.45;}
+#planViewOverlay .pv-seg{border:1px solid #e8e0cc;border-radius:8px;padding:10px 12px;margin-bottom:8px;}
+#planViewOverlay .pv-seg-top{display:flex;align-items:baseline;gap:10px;}
+#planViewOverlay .pv-mins{font-family:'Bebas Neue',sans-serif;font-size:1.15rem;color:#c8102e;line-height:1;}
+#planViewOverlay .pv-mins-u{font-size:.6rem;color:#999;margin-left:2px;}
+#planViewOverlay .pv-cat{flex:1;font-weight:700;font-size:.95rem;color:#111;}
+#planViewOverlay .pv-range{font-size:.7rem;color:#888;white-space:nowrap;}
+#planViewOverlay .pv-desc{font-size:.85rem;color:#333;line-height:1.5;margin-top:6px;}
+#planViewOverlay .pv-video{display:inline-block;margin-top:8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-size:.78rem;color:#c8102e;text-decoration:none;}
+#planViewOverlay .pv-video:hover{text-decoration:underline;}
 </style>
 <script>
 // ─── BELT COLORS ─────────────────────────────────────────────
@@ -2350,6 +2373,16 @@ async function hydrateByDaySchedule(){
   } catch(e){ return; }
   if(!rows.length) return;
 
+  // Shared class plans for the current student week (rolls over Monday 8 AM)
+  const sharedMap = {};
+  try {
+    const wsStr = currLocalYMD(currStudentWeekStart());
+    const { data: plans } = await BTKD.sb.from('class_plans')
+      .select('day,time,label,belt,plan_content,shared_with_students')
+      .eq('week_start', wsStr).eq('shared_with_students', true);
+    (plans||[]).forEach(p => { sharedMap[p.day + '-' + p.time] = p; });
+  } catch(e){ /* no shared plans → grid still renders, just nothing clickable */ }
+
   const schedule = rows.map(r => ({
     day: r.day, time: r.time, timeH: r.time_h, timeM: r.time_m,
     label: r.label, belt: r.belt, progCss: r.prog_css,
@@ -2364,13 +2397,82 @@ async function hydrateByDaySchedule(){
   BTKDGrid.render({
     container: document.getElementById('curr-sched-grid'),
     schedule,
-    getCell: () => ({ instructor:'', status:'none', shared:false }),
-    isInteractive: () => false,
-    weekStart: BTKDGrid.getWeekStart(0),
+    getCell: (day, time) => {
+      const p = sharedMap[day + '-' + time];
+      if (p) return { instructor:'', status:'reviewed', shared:true, planContent: p.plan_content };
+      return { instructor:'', status:'none', shared:false };
+    },
+    isInteractive: cell => !!cell.shared,
+    onCellClick: openSharedPlanView,
+    weekStart: currStudentWeekStart(),
     mode: 'light',
     canAssign: false,
     pxPerMin: 1.4
   });
+}
+
+// The student-facing "current week" rolls over Monday at 8:00 AM. Before that
+// (including all of Sunday) students still see the week that is ending.
+function currStudentWeekStart(){
+  const now = new Date();
+  if (now.getDay() === 1 && now.getHours() < 8) return BTKDGrid.getWeekStart(-1);
+  return BTKDGrid.getWeekStart(0);
+}
+function currLocalYMD(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function currEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function currFmtMins(total){ const h=Math.floor(total/60)%24, m=((total%60)+60)%60; const ap=h>=12?'PM':'AM'; const dh=h%12||12; return dh+':'+String(m).padStart(2,'0')+' '+ap; }
+
+// Read-only run view of a shared plan — focus + segments, no instructor/Chief notes.
+function openSharedPlanView(entry){
+  let pc = entry.planContent;
+  if (typeof pc === 'string') { try { pc = JSON.parse(pc); } catch(e){ pc = {}; } }
+  pc = pc || {};
+
+  let ov = document.getElementById('planViewOverlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'planViewOverlay';
+    ov.onclick = e => { if (e.target === ov) closeSharedPlanView(); };
+    ov.innerHTML = '<div class="pv-card"><div class="pv-head"><div class="pv-title" id="pvTitle"></div><button class="pv-close" onclick="closeSharedPlanView()">&#10005;</button></div><div class="pv-body" id="pvBody"></div></div>';
+    document.body.appendChild(ov);
+  }
+
+  const dayName = ['MON','TUE','WED','THU','FRI','SAT'][entry.day] || '';
+  const timeStr = currFmtMins(entry.timeH*60 + entry.timeM);
+  document.getElementById('pvTitle').innerHTML =
+    currEsc(entry.label) + (entry.belt ? ' — ' + currEsc(entry.belt) : '')
+    + '<span class="pv-when">' + dayName + ' · ' + timeStr + '</span>';
+
+  const focus = pc.focus || '';
+  const focusVid = pc.focusVideoUrl || '';
+  let h = '<div class="pv-focus"><div class="pv-focus-lbl">Class Focus</div><div class="pv-focus-text">'
+    + (focus ? currEsc(focus).replace(/\n/g,'<br>') : '<em style="color:#999">No focus set.</em>') + '</div>'
+    + (focusVid ? '<a class="pv-video" href="'+currEsc(focusVid)+'" target="_blank" rel="noopener">&#9654; Class Reference Video</a>' : '')
+    + '</div>';
+
+  const segs = pc.segs || [];
+  if (segs.length) {
+    let cum = entry.timeH*60 + entry.timeM;
+    segs.forEach(s => {
+      const start = cum, end = cum + (s.mins||0); cum = end;
+      h += '<div class="pv-seg"><div class="pv-seg-top">'
+        + '<span class="pv-mins">'+(s.mins||0)+'<span class="pv-mins-u">min</span></span>'
+        + '<span class="pv-cat">'+currEsc(s.label||'Segment')+'</span>'
+        + '<span class="pv-range">'+currFmtMins(start)+'&ndash;'+currFmtMins(end)+'</span></div>'
+        + '<div class="pv-desc">'+(s.desc ? currEsc(s.desc).replace(/\n/g,'<br>') : '<em style="color:#999">No details.</em>')+'</div>'
+        + (s.videoUrl ? '<a class="pv-video" href="'+currEsc(s.videoUrl)+'" target="_blank" rel="noopener">&#9654; Watch Reference</a>' : '')
+        + '</div>';
+    });
+  } else {
+    h += '<div style="color:#999;font-size:.85rem;padding:8px 0;">No segments in this plan.</div>';
+  }
+  document.getElementById('pvBody').innerHTML = h;
+  ov.style.display = 'flex';
+}
+
+function closeSharedPlanView(){
+  const ov = document.getElementById('planViewOverlay');
+  if (ov) ov.style.display = 'none';
 }
 
 
