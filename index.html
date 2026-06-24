@@ -382,6 +382,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://portal.barestkd.fit/shared/auth.js?v=2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
 <script src="https://portal.barestkd.fit/shared/schedule-grid.js?v=4"></script>
 <script src="https://portal.barestkd.fit/shared/belts.js?v=2"></script>
 <style>
@@ -2988,7 +2989,7 @@ async function loadUserProfile(){
   const btn = document.getElementById('authBtn');
   if(btn){
     btn.textContent = name.split(' ')[0];
-    btn.onclick = showUserMenu;
+    btn.onclick = openProfile;
   }
   // Auto-unlock admin if role is admin
   if(currentRole === 'admin'){
@@ -3068,15 +3069,24 @@ async function doAuthSignup(){
   await loadUserProfile();
 }
 
-function showUserMenu(){
-  if(confirm('Sign out of BaresTKD?')){
-    BTKD.signOut();
-    currentUser = null;
-    currentRole = null;
-    isAdmin = false;
-    document.getElementById('curr-login').style.display = 'flex';
-    document.getElementById('curr-loading').style.display = 'none';
-  }
+async function openProfile(){
+  document.getElementById('profileEmail').textContent = currentUser.email;
+  let codeVal = currentUser.id;
+  try {
+    const { data: own } = await sb.from('contacts').select('id').eq('profile_id', currentUser.id).maybeSingle();
+    if(own?.id) codeVal = own.id;
+  } catch(e){}
+  new QRious({ element: document.getElementById('profileQrCanvas'), value: String(codeVal), size: 220, level: 'M' });
+  document.getElementById('profileCodeLabel').textContent = codeVal;
+  document.getElementById('profileModal').style.display = 'flex';
+}
+function closeProfile(){ document.getElementById('profileModal').style.display = 'none'; }
+function doProfileSignOut(){
+  BTKD.signOut();
+  currentUser = null; currentRole = null; isAdmin = false;
+  closeProfile();
+  document.getElementById('curr-login').style.display = 'flex';
+  document.getElementById('curr-loading').style.display = 'none';
 }
 
 // ─── LOAD CYCLE DATA FROM SUPABASE ───────────────────────────
@@ -3106,5 +3116,16 @@ loadCycleData();
 buildFilterTabs();
 renderCards();
 </script>
+<div id="profileModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:600;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;padding:26px 24px;max-width:340px;width:90%;text-align:center;position:relative;">
+    <div style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:1.4rem;color:#111;">Profile</div>
+    <div id="profileEmail" style="font-size:.75rem;color:#888;margin-bottom:18px;"></div>
+    <div style="font-size:.7rem;letter-spacing:1px;text-transform:uppercase;color:#999;margin-bottom:8px;">My Check-In Code</div>
+    <canvas id="profileQrCanvas" style="width:220px;height:220px;"></canvas>
+    <div id="profileCodeLabel" style="font-size:.62rem;color:#bbb;margin:8px 0 18px;word-break:break-all;"></div>
+    <button onclick="doProfileSignOut()" style="width:100%;padding:12px;background:#f5f5f5;color:#c8102e;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Sign Out</button>
+    <button onclick="closeProfile()" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:1.2rem;cursor:pointer;color:#888;">✕</button>
+  </div>
+</div>
 </body>
 </html>
