@@ -3079,6 +3079,7 @@ async function openProfile(){
   new QRious({ element: document.getElementById('profileQrCanvas'), value: String(codeVal), size: 220, level: 'M' });
   document.getElementById('profileCodeLabel').textContent = codeVal;
   document.getElementById('profileModal').style.display = 'flex';
+  loadProfileKids(); // parent check-in section, fills in async
 }
 function closeProfile(){ document.getElementById('profileModal').style.display = 'none'; }
 function doProfileSignOut(){
@@ -3087,6 +3088,116 @@ function doProfileSignOut(){
   closeProfile();
   document.getElementById('curr-login').style.display = 'flex';
   document.getElementById('curr-loading').style.display = 'none';
+}
+
+// ─── PARENT CHECK-IN ─────────────────────────────────────────
+// Parents at the dojo check their kids into today's classes from this modal.
+// Writes the same attendance rows the CRM roster + kiosk use (same
+// class_label key), so the instructor's end-of-class pass sees them checked.
+// Available all day on class days; a parent can also undo any same-day
+// check-in (kiosk ones included). RLS: sql/attendance-parent.sql.
+const CHECKIN_GATE = {'prog-cubs':'Cubs','prog-juniors':'Juniors','prog-teen':'Teens/Adults','prog-forms':['Juniors','Teens/Adults'],'prog-sparring':['Juniors','Teens/Adults'],'prog-kick':'Kickboxing','prog-ampd':"AMP'D",'prog-leader':'Leadership'};
+// Set lat/lng to enable optional location verification (source 'parent_gps').
+const DOJO_LOC = { lat: null, lng: null, radiusM: 250 };
+let CI_CACHE = { kids: [] };
+
+function ciYMD(){ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function ciGeoWanted(){ return localStorage.getItem('ci_geo')==='1' && DOJO_LOC.lat!=null; }
+function ciGeoToggle(el){ localStorage.setItem('ci_geo', el.checked?'1':'0'); }
+function ciGeoVerify(){
+  return new Promise(function(res){
+    if(!navigator.geolocation) return res(false);
+    navigator.geolocation.getCurrentPosition(function(p){
+      const R=6371000, toR=function(x){ return x*Math.PI/180; };
+      const dLat=toR(p.coords.latitude-DOJO_LOC.lat), dLng=toR(p.coords.longitude-DOJO_LOC.lng);
+      const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(toR(DOJO_LOC.lat))*Math.cos(toR(p.coords.latitude))*Math.sin(dLng/2)*Math.sin(dLng/2);
+      res(2*R*Math.asin(Math.sqrt(a)) <= DOJO_LOC.radiusM);
+    }, function(){ res(false); }, {timeout:6000, maximumAge:60000});
+  });
+}
+
+async function loadProfileKids(){
+  const box = document.getElementById('profileKids');
+  if(!box || !currentUser) return;
+  box.innerHTML = '';
+  try{
+    // Kids on this account: my_student_ids() RPC, guardian-links fallback.
+    let ids = [];
+    try{
+      const r = await sb.rpc('my_student_ids');
+      if(!r.error && Array.isArray(r.data)) ids = r.data.map(function(x){ return (x && typeof x==='object') ? (x.my_student_ids||x.id) : x; }).filter(Boolean);
+    }catch(e){}
+    if(!ids.length){
+      const g = await sb.from('student_guardians').select('student_id').ilike('email', (currentUser.email||''));
+      if(!g.error) ids = (g.data||[]).map(function(x){ return x.student_id; });
+    }
+    if(!ids.length) return; // not a guardian account — section stays hidden
+
+    const dayIdx = (new Date().getDay()+6)%7; // 0=Mon … 6=Sun
+    const [ks, en, sch, at] = await Promise.all([
+      sb.from('students').select('id,name').in('id', ids),
+      sb.from('enrollments').select('student_id,program').in('student_id', ids).eq('status','active'),
+      sb.from('schedule_template').select('day,time,label,belt,prog_css'),
+      sb.from('attendance').select('id,student_id,class_label').in('student_id', ids).eq('class_date', ciYMD())
+    ]);
+    const kids = ks.data||[], enr = en.data||[], att = at.data||[];
+    const order = ['MON','TUE','WED','THU','FRI','SAT'];
+    // Same label the CRM roster + kiosk key on — do not reformat.
+    const labelOf = function(r){ return (r.label||'Class')+(r.belt?(' · '+r.belt):'')+(r.time?('  '+order[r.day]+' '+r.time):''); };
+    const todays = (sch.data||[]).filter(function(r){ return r.day===dayIdx; });
+
+    CI_CACHE.kids = kids.map(function(k){
+      const progs = enr.filter(function(e){ return e.student_id===k.id; }).map(function(e){ return e.program; });
+      const classes = todays.filter(function(r){
+        const g = CHECKIN_GATE[r.prog_css]||'Juniors';
+        const list = Array.isArray(g)?g:[g];
+        return list.some(function(p){ return progs.indexOf(p)!==-1; });
+      }).map(function(r){
+        const lbl = labelOf(r);
+        const g = CHECKIN_GATE[r.prog_css]||'Juniors';
+        const hit = att.find(function(a){ return a.student_id===k.id && a.class_label===lbl; });
+        return { label: lbl, gate: Array.isArray(g)?g[0]:g, attId: hit?hit.id:null };
+      });
+      return { id: k.id, name: k.name||'Student', classes: classes };
+    }).filter(function(k){ return k.classes.length; });
+
+    if(!CI_CACHE.kids.length){
+      box.innerHTML = '<div style="font-size:.72rem;color:#aaa;text-align:center;padding:4px 0 2px;">No classes to check into today.</div>';
+      return;
+    }
+    let h = '<div style="font-size:.7rem;letter-spacing:1px;text-transform:uppercase;color:#999;margin-bottom:8px;text-align:center;">Class Check-In · Today</div>';
+    CI_CACHE.kids.forEach(function(k, ki){
+      h += '<div style="font-weight:700;font-size:.85rem;color:#111;margin:8px 0 4px;">'+k.name+'</div>';
+      k.classes.forEach(function(c, ci){
+        const on = !!c.attId;
+        h += '<button onclick="curToggleCheckin('+ki+','+ci+')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;padding:10px 12px;margin-bottom:6px;border-radius:8px;cursor:pointer;font-size:.78rem;'
+          + (on ? 'background:#e6f6ec;border:1.5px solid #2ecc71;color:#1e9e54;font-weight:700;'
+                : 'background:#fafafa;border:1.5px solid #ddd;color:#333;')
+          + '"><span>'+c.label.replace(/\s{2,}/g,' · ')+'</span><span style="white-space:nowrap;">'+(on?'✓ In · undo':'Check in')+'</span></button>';
+      });
+    });
+    if(DOJO_LOC.lat!=null){
+      h += '<label style="display:flex;align-items:center;gap:6px;font-size:.72rem;color:#888;margin-top:6px;cursor:pointer;"><input type="checkbox" onchange="ciGeoToggle(this)"'+(localStorage.getItem('ci_geo')==='1'?' checked':'')+'> Verify my location when checking in</label>';
+    }
+    box.innerHTML = h;
+  }catch(e){ console.error('loadProfileKids', e); }
+}
+
+async function curToggleCheckin(ki, ci){
+  const kid = CI_CACHE.kids[ki]; if(!kid) return;
+  const cls = kid.classes[ci]; if(!cls) return;
+  if(cls.attId){
+    const r = await sb.from('attendance').delete().eq('id', cls.attId);
+    if(r.error){ alert('Could not undo: '+r.error.message); return; }
+  } else {
+    let source = 'parent';
+    if(ciGeoWanted() && await ciGeoVerify()) source = 'parent_gps';
+    const row = { student_id: kid.id, class_label: cls.label, program: cls.gate, class_date: ciYMD(),
+                  status: 'confirmed', source: source, recorded_by: (currentUser && currentUser.email) || 'parent' };
+    const r = await sb.from('attendance').insert(row);
+    if(r.error){ alert('Check-in failed: '+r.error.message); return; }
+  }
+  loadProfileKids();
 }
 
 // ─── LOAD CYCLE DATA FROM SUPABASE ───────────────────────────
@@ -3117,12 +3228,13 @@ buildFilterTabs();
 renderCards();
 </script>
 <div id="profileModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:600;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:14px;padding:26px 24px;max-width:340px;width:90%;text-align:center;position:relative;">
+  <div style="background:#fff;border-radius:14px;padding:26px 24px;max-width:340px;width:90%;text-align:center;position:relative;max-height:88vh;overflow-y:auto;">
     <div style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:1.4rem;color:#111;">Profile</div>
     <div id="profileEmail" style="font-size:.75rem;color:#888;margin-bottom:18px;"></div>
     <div style="font-size:.7rem;letter-spacing:1px;text-transform:uppercase;color:#999;margin-bottom:8px;">My Check-In Code</div>
     <canvas id="profileQrCanvas" style="width:220px;height:220px;"></canvas>
     <div id="profileCodeLabel" style="font-size:.62rem;color:#bbb;margin:8px 0 18px;word-break:break-all;"></div>
+    <div id="profileKids" style="text-align:left;margin-bottom:14px;"></div>
     <button onclick="doProfileSignOut()" style="width:100%;padding:12px;background:#f5f5f5;color:#c8102e;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Sign Out</button>
     <button onclick="closeProfile()" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:1.2rem;cursor:pointer;color:#888;">✕</button>
   </div>
