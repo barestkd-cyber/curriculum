@@ -3069,6 +3069,8 @@ async function doAuthSignup(){
   await loadUserProfile();
 }
 
+let PROFILE_MY_CODE = null; // the account holder's own code (contact id or auth id)
+
 async function openProfile(){
   document.getElementById('profileEmail').textContent = currentUser.email;
   let codeVal = currentUser.id;
@@ -3076,10 +3078,39 @@ async function openProfile(){
     const { data: own } = await sb.from('contacts').select('id').eq('profile_id', currentUser.id).maybeSingle();
     if(own?.id) codeVal = own.id;
   } catch(e){}
-  new QRious({ element: document.getElementById('profileQrCanvas'), value: String(codeVal), size: 220, level: 'M' });
-  document.getElementById('profileCodeLabel').textContent = codeVal;
+  PROFILE_MY_CODE = String(codeVal);
+  document.getElementById('profileQrWho').style.display = 'none';
+  profileSetQr(PROFILE_MY_CODE);
   document.getElementById('profileModal').style.display = 'flex';
-  loadProfileKids(); // parent check-in section, fills in async
+  loadProfileKids(); // parent check-in section + per-student QR chips, fills in async
+}
+
+// Redraws the QR for the given contact id. With linked students the chips let
+// a parent switch between each kid's code and their own.
+function profileSetQr(val){
+  new QRious({ element: document.getElementById('profileQrCanvas'), value: String(val), size: 220, level: 'M' });
+  document.getElementById('profileCodeLabel').textContent = val;
+  const who = document.getElementById('profileQrWho');
+  Array.prototype.forEach.call(who.children, function(b){
+    const on = b.dataset.code === String(val);
+    b.style.background = on ? '#111' : '#f2f2f2';
+    b.style.color = on ? '#fff' : '#555';
+  });
+}
+
+function renderQrWho(){
+  const who = document.getElementById('profileQrWho');
+  if(!who) return;
+  const kids = CI_CACHE.allKids || [];
+  if(!kids.length){ who.style.display = 'none'; return; }
+  const chip = function(code, label){
+    return '<button data-code="'+code+'" onclick="profileSetQr(this.dataset.code)" style="border:none;border-radius:999px;padding:6px 12px;font-size:.72rem;font-weight:600;cursor:pointer;background:#f2f2f2;color:#555;">'+label+'</button>';
+  };
+  who.innerHTML = kids.map(function(k){ return chip(k.id, (k.name||'Student').split(' ')[0]); }).join('')
+    + chip(PROFILE_MY_CODE, 'Me');
+  who.style.display = 'flex';
+  // Default to the first student — the kiosk scan identifies who's training.
+  profileSetQr(kids[0].id);
 }
 function closeProfile(){ document.getElementById('profileModal').style.display = 'none'; }
 function doProfileSignOut(){
@@ -3097,14 +3128,13 @@ function doProfileSignOut(){
 // Available all day on class days; a parent can also undo any same-day
 // check-in (kiosk ones included). RLS: sql/attendance-parent.sql.
 const CHECKIN_GATE = {'prog-cubs':'Cubs','prog-juniors':'Juniors','prog-teen':'Teens/Adults','prog-forms':['Juniors','Teens/Adults'],'prog-sparring':['Juniors','Teens/Adults'],'prog-kick':'Kickboxing','prog-ampd':"AMP'D",'prog-leader':'Leadership'};
-// 1901 Deerbrook Dr, Tyler TX 75703 (Paluxy Plaza). Enables the optional
-// "Verify my location" checkbox; verified check-ins record source 'parent_gps'.
+// 1901 Deerbrook Dr, Tyler TX 75703 (Paluxy Plaza). Every check-in silently
+// attempts a one-shot location read; within the radius the row records source
+// 'parent_gps', otherwise plain 'parent'. Never blocks the check-in.
 const DOJO_LOC = { lat: 32.27736, lng: -95.27572, radiusM: 250 };
-let CI_CACHE = { kids: [] };
+let CI_CACHE = { kids: [], allKids: [] };
 
 function ciYMD(){ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function ciGeoWanted(){ return localStorage.getItem('ci_geo')==='1' && DOJO_LOC.lat!=null; }
-function ciGeoToggle(el){ localStorage.setItem('ci_geo', el.checked?'1':'0'); }
 function ciGeoVerify(){
   return new Promise(function(res){
     if(!navigator.geolocation) return res(false);
@@ -3142,6 +3172,8 @@ async function loadProfileKids(){
       sb.from('attendance').select('id,student_id,class_label').in('student_id', ids).eq('class_date', ciYMD())
     ]);
     const kids = ks.data||[], enr = en.data||[], att = at.data||[];
+    CI_CACHE.allKids = kids.map(function(k){ return { id: k.id, name: k.name||'Student' }; });
+    renderQrWho(); // QR chips show every linked student, classes today or not
     const order = ['MON','TUE','WED','THU','FRI','SAT'];
     // Same label the CRM roster + kiosk key on — do not reformat.
     const labelOf = function(r){ return (r.label||'Class')+(r.belt?(' · '+r.belt):'')+(r.time?('  '+order[r.day]+' '+r.time):''); };
@@ -3178,7 +3210,7 @@ async function loadProfileKids(){
       });
     });
     if(DOJO_LOC.lat!=null){
-      h += '<label style="display:flex;align-items:center;gap:6px;font-size:.72rem;color:#888;margin-top:6px;cursor:pointer;"><input type="checkbox" onchange="ciGeoToggle(this)"'+(localStorage.getItem('ci_geo')==='1'?' checked':'')+'> Verify my location when checking in</label>';
+      h += '<div style="font-size:.68rem;color:#aaa;margin-top:6px;text-align:center;">📍 Checking in verifies your location at the studio.</div>';
     }
     box.innerHTML = h;
   }catch(e){ console.error('loadProfileKids', e); }
@@ -3192,7 +3224,7 @@ async function curToggleCheckin(ki, ci){
     if(r.error){ alert('Could not undo: '+r.error.message); return; }
   } else {
     let source = 'parent';
-    if(ciGeoWanted() && await ciGeoVerify()) source = 'parent_gps';
+    if(DOJO_LOC.lat!=null && await ciGeoVerify()) source = 'parent_gps';
     const row = { student_id: kid.id, class_label: cls.label, program: cls.gate, class_date: ciYMD(),
                   status: 'confirmed', source: source, recorded_by: (currentUser && currentUser.email) || 'parent' };
     const r = await sb.from('attendance').insert(row);
@@ -3233,6 +3265,7 @@ renderCards();
     <div style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:1.4rem;color:#111;">Profile</div>
     <div id="profileEmail" style="font-size:.75rem;color:#888;margin-bottom:18px;"></div>
     <div style="font-size:.7rem;letter-spacing:1px;text-transform:uppercase;color:#999;margin-bottom:8px;">My Check-In Code</div>
+    <div id="profileQrWho" style="display:none;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:8px;"></div>
     <canvas id="profileQrCanvas" style="width:220px;height:220px;"></canvas>
     <div id="profileCodeLabel" style="font-size:.62rem;color:#bbb;margin:8px 0 18px;word-break:break-all;"></div>
     <div id="profileKids" style="text-align:left;margin-bottom:14px;"></div>
