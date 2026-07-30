@@ -3070,13 +3070,15 @@ async function doAuthSignup(){
 }
 
 let PROFILE_MY_CODE = null; // the account holder's own code (contact id or auth id)
+let PROFILE_MY_IS_STUDENT = false; // true only when the account has its own contacts row — parents don't need a code
 
 async function openProfile(){
   document.getElementById('profileEmail').textContent = currentUser.email;
   let codeVal = currentUser.id;
+  PROFILE_MY_IS_STUDENT = false;
   try {
     const { data: own } = await sb.from('contacts').select('id').eq('profile_id', currentUser.id).maybeSingle();
-    if(own?.id) codeVal = own.id;
+    if(own?.id){ codeVal = own.id; PROFILE_MY_IS_STUDENT = true; }
   } catch(e){}
   PROFILE_MY_CODE = String(codeVal);
   document.getElementById('profileQrWho').style.display = 'none';
@@ -3108,8 +3110,11 @@ function renderQrWho(){
   const chip = function(code, label){
     return '<button data-code="'+code+'" onclick="profileSetQr(this.dataset.code)" style="border:none;border-radius:999px;padding:6px 12px;font-size:.72rem;font-weight:600;cursor:pointer;background:#f2f2f2;color:#555;">'+label+'</button>';
   };
+  // Parents only get a "Me" chip when they're a student themselves (their
+  // account resolves to its own contacts row). Codes identify students, and
+  // every scan is one person — there is no whole-family code.
   who.innerHTML = kids.map(function(k){ return chip(k.id, (k.name||'Student').split(' ')[0]); }).join('')
-    + chip(PROFILE_MY_CODE, 'Me');
+    + (PROFILE_MY_IS_STUDENT ? chip(PROFILE_MY_CODE, 'Me') : '');
   who.style.display = 'flex';
   if(kids.length === 1){
     profileSetQr(kids[0].id);          // one student: show their code right away
@@ -3126,18 +3131,22 @@ function printQrCodes(){
   const area = document.getElementById('qrPrintArea');
   if(!area) return;
   const people = (CI_CACHE.allKids||[]).map(function(k){ return { code: k.id, name: k.name||'Student' }; });
-  people.push({ code: PROFILE_MY_CODE, name: (currentUser && currentUser.email) || 'Me' });
+  if(PROFILE_MY_IS_STUDENT) people.push({ code: PROFILE_MY_CODE, name: (currentUser && currentUser.email) || 'Me' });
+  if(!people.length) return;
   area.innerHTML = people.map(function(p){
     const q = new QRious({ value: String(p.code), size: 420, level: 'M' });
     return '<div class="qr-print-card"><img src="'+q.toDataURL()+'" alt=""><div class="qr-print-name">'+p.name+'</div><div class="qr-print-sub">BaresTKD check-in code</div></div>';
   }).join('');
+  // The class only affects @media print rules, so it is harmless on screen.
+  // No timeout here: mobile print previews render async, and stripping the
+  // class early is what blanked the preview. afterprint (or closing the
+  // profile) cleans up.
   document.body.classList.add('qr-printing');
   const done = function(){ document.body.classList.remove('qr-printing'); window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
   window.print();
-  setTimeout(done, 2000); // safety net for browsers that skip afterprint
 }
-function closeProfile(){ document.getElementById('profileModal').style.display = 'none'; }
+function closeProfile(){ document.getElementById('profileModal').style.display = 'none'; document.body.classList.remove('qr-printing'); }
 function doProfileSignOut(){
   BTKD.signOut();
   currentUser = null; currentRole = null; isAdmin = false;
