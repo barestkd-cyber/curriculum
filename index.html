@@ -3162,22 +3162,25 @@ function doProfileSignOut(){
 // Available all day on class days; a parent can also undo any same-day
 // check-in (kiosk ones included). RLS: sql/attendance-parent.sql.
 const CHECKIN_GATE = {'prog-cubs':'Cubs','prog-juniors':'Juniors','prog-teen':'Teens/Adults','prog-forms':['Juniors','Teens/Adults'],'prog-sparring':['Juniors','Teens/Adults'],'prog-kick':'Kickboxing','prog-ampd':"AMP'D",'prog-leader':'Leadership'};
-// 1901 Deerbrook Dr, Tyler TX 75703 (Paluxy Plaza). Every check-in silently
-// attempts a one-shot location read; within the radius the row records source
-// 'parent_gps', otherwise plain 'parent'. Never blocks the check-in.
+// 1901 Deerbrook Dr, Tyler TX 75703 (Paluxy Plaza). Location is a FENCE for
+// the app path (per Mr. Bares): outside the radius, denied, or unavailable
+// means the check-in is refused with a pointer to the front-desk kiosk — a
+// blocked check-in beats one that staff quietly deletes later. Undo stays
+// ungated. If lat is ever nulled, the fence disarms and 'parent' rows resume.
 const DOJO_LOC = { lat: 32.27736, lng: -95.27572, radiusM: 250 };
 let CI_CACHE = { kids: [], allKids: [] };
 
 function ciYMD(){ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function ciGeoVerify(){
+function ciGeoCheck(){
   return new Promise(function(res){
-    if(!navigator.geolocation) return res(false);
+    if(!navigator.geolocation) return res({ ok:false, reason:'unavailable' });
     navigator.geolocation.getCurrentPosition(function(p){
       const R=6371000, toR=function(x){ return x*Math.PI/180; };
       const dLat=toR(p.coords.latitude-DOJO_LOC.lat), dLng=toR(p.coords.longitude-DOJO_LOC.lng);
       const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(toR(DOJO_LOC.lat))*Math.cos(toR(p.coords.latitude))*Math.sin(dLng/2)*Math.sin(dLng/2);
-      res(2*R*Math.asin(Math.sqrt(a)) <= DOJO_LOC.radiusM);
-    }, function(){ res(false); }, {timeout:6000, maximumAge:60000});
+      const dist=2*R*Math.asin(Math.sqrt(a));
+      res(dist <= DOJO_LOC.radiusM ? { ok:true } : { ok:false, reason:'far' });
+    }, function(){ res({ ok:false, reason:'denied' }); }, {timeout:8000, maximumAge:60000});
   });
 }
 
@@ -3244,7 +3247,7 @@ async function loadProfileKids(){
       });
     });
     if(DOJO_LOC.lat!=null){
-      h += '<div style="font-size:.68rem;color:#aaa;margin-top:6px;text-align:center;">📍 Checking in verifies your location at the studio.</div>';
+      h += '<div style="font-size:.68rem;color:#aaa;margin-top:6px;text-align:center;">📍 Check-in works at the studio (location required) — or scan at the front desk.</div>';
     }
     box.innerHTML = h;
   }catch(e){ console.error('loadProfileKids', e); }
@@ -3258,7 +3261,16 @@ async function curToggleCheckin(ki, ci){
     if(r.error){ alert('Could not undo: '+r.error.message); return; }
   } else {
     let source = 'parent';
-    if(DOJO_LOC.lat!=null && await ciGeoVerify()) source = 'parent_gps';
+    if(DOJO_LOC.lat!=null){
+      const geo = await ciGeoCheck();
+      if(!geo.ok){
+        alert(geo.reason==='far'
+          ? "Looks like you're not at the studio yet. Check in when you arrive — or scan at the front desk."
+          : "Location is required to check in from the app. Allow location access and try again — or scan at the front desk.");
+        return;
+      }
+      source = 'parent_gps';
+    }
     const row = { student_id: kid.id, class_label: cls.label, program: cls.gate, class_date: ciYMD(),
                   status: 'confirmed', source: source, recorded_by: (currentUser && currentUser.email) || 'parent' };
     const r = await sb.from('attendance').insert(row);
