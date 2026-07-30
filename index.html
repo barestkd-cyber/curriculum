@@ -3085,13 +3085,15 @@ async function openProfile(){
   loadProfileKids(); // parent check-in section + per-student QR chips, fills in async
 }
 
-// Redraws the QR for the given contact id. With linked students the chips let
-// a parent switch between each kid's code and their own.
+// Redraws the QR for the given contact id and reveals the canvas. With linked
+// students the chips let a parent switch between each kid's code and their own.
 function profileSetQr(val){
   new QRious({ element: document.getElementById('profileQrCanvas'), value: String(val), size: 220, level: 'M' });
+  document.getElementById('profileQrCanvas').style.display = '';
   document.getElementById('profileCodeLabel').textContent = val;
   const who = document.getElementById('profileQrWho');
   Array.prototype.forEach.call(who.children, function(b){
+    if(!b.dataset || !b.dataset.code) return;
     const on = b.dataset.code === String(val);
     b.style.background = on ? '#111' : '#f2f2f2';
     b.style.color = on ? '#fff' : '#555';
@@ -3109,8 +3111,31 @@ function renderQrWho(){
   who.innerHTML = kids.map(function(k){ return chip(k.id, (k.name||'Student').split(' ')[0]); }).join('')
     + chip(PROFILE_MY_CODE, 'Me');
   who.style.display = 'flex';
-  // Default to the first student — the kiosk scan identifies who's training.
-  profileSetQr(kids[0].id);
+  if(kids.length === 1){
+    profileSetQr(kids[0].id);          // one student: show their code right away
+  } else {
+    // Several people on the account: no code until a name is tapped.
+    document.getElementById('profileQrCanvas').style.display = 'none';
+    document.getElementById('profileCodeLabel').textContent = 'Tap a name to show their code';
+  }
+}
+
+// Prints every code on the account (kids + account holder) as laminate-ready
+// cards: hides the app, prints #qrPrintArea, restores.
+function printQrCodes(){
+  const area = document.getElementById('qrPrintArea');
+  if(!area) return;
+  const people = (CI_CACHE.allKids||[]).map(function(k){ return { code: k.id, name: k.name||'Student' }; });
+  people.push({ code: PROFILE_MY_CODE, name: (currentUser && currentUser.email) || 'Me' });
+  area.innerHTML = people.map(function(p){
+    const q = new QRious({ value: String(p.code), size: 420, level: 'M' });
+    return '<div class="qr-print-card"><img src="'+q.toDataURL()+'" alt=""><div class="qr-print-name">'+p.name+'</div><div class="qr-print-sub">BaresTKD check-in code</div></div>';
+  }).join('');
+  document.body.classList.add('qr-printing');
+  const done = function(){ document.body.classList.remove('qr-printing'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  window.print();
+  setTimeout(done, 2000); // safety net for browsers that skip afterprint
 }
 function closeProfile(){ document.getElementById('profileModal').style.display = 'none'; }
 function doProfileSignOut(){
@@ -3192,15 +3217,15 @@ async function loadProfileKids(){
         return { label: lbl, gate: Array.isArray(g)?g[0]:g, attId: hit?hit.id:null };
       });
       return { id: k.id, name: k.name||'Student', classes: classes };
-    }).filter(function(k){ return k.classes.length; });
+    }); // unenrolled kids stay listed — could be a drop-in, and parents should see them
 
-    if(!CI_CACHE.kids.length){
-      box.innerHTML = '<div style="font-size:.72rem;color:#aaa;text-align:center;padding:4px 0 2px;">No classes to check into today.</div>';
-      return;
-    }
+    if(!CI_CACHE.kids.length) return;
     let h = '<div style="font-size:.7rem;letter-spacing:1px;text-transform:uppercase;color:#999;margin-bottom:8px;text-align:center;">Class Check-In · Today</div>';
     CI_CACHE.kids.forEach(function(k, ki){
       h += '<div style="font-weight:700;font-size:.85rem;color:#111;margin:8px 0 4px;">'+k.name+'</div>';
+      if(!k.classes.length){
+        h += '<div style="font-size:.72rem;color:#aaa;padding:2px 0 6px;">Not enrolled in a class today — drop-in or ask at the desk.</div>';
+      }
       k.classes.forEach(function(c, ci){
         const on = !!c.attId;
         h += '<button onclick="curToggleCheckin('+ki+','+ci+')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;padding:10px 12px;margin-bottom:6px;border-radius:8px;cursor:pointer;font-size:.78rem;'
@@ -3267,11 +3292,24 @@ renderCards();
     <div style="font-size:.7rem;letter-spacing:1px;text-transform:uppercase;color:#999;margin-bottom:8px;">My Check-In Code</div>
     <div id="profileQrWho" style="display:none;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:8px;"></div>
     <canvas id="profileQrCanvas" style="width:220px;height:220px;"></canvas>
-    <div id="profileCodeLabel" style="font-size:.62rem;color:#bbb;margin:8px 0 18px;word-break:break-all;"></div>
+    <div id="profileCodeLabel" style="font-size:.62rem;color:#bbb;margin:8px 0 6px;word-break:break-all;"></div>
+    <button onclick="printQrCodes()" style="background:none;border:none;color:#c8102e;font-size:.72rem;font-weight:600;cursor:pointer;margin-bottom:14px;text-decoration:underline;">🖨 Print codes</button>
     <div id="profileKids" style="text-align:left;margin-bottom:14px;"></div>
     <button onclick="doProfileSignOut()" style="width:100%;padding:12px;background:#f5f5f5;color:#c8102e;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Sign Out</button>
     <button onclick="closeProfile()" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:1.2rem;cursor:pointer;color:#888;">✕</button>
   </div>
 </div>
+<style>
+#qrPrintArea{display:none;}
+@media print{
+  body.qr-printing > *:not(#qrPrintArea){display:none !important;}
+  body.qr-printing #qrPrintArea{display:flex !important;flex-wrap:wrap;gap:24px;padding:24px;}
+  .qr-print-card{width:300px;text-align:center;border:1px dashed #999;border-radius:12px;padding:18px;page-break-inside:avoid;}
+  .qr-print-card img{width:260px;height:260px;}
+  .qr-print-name{font-size:1.1rem;font-weight:700;color:#111;margin-top:10px;}
+  .qr-print-sub{font-size:.7rem;color:#666;letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
+}
+</style>
+<div id="qrPrintArea"></div>
 </body>
 </html>
