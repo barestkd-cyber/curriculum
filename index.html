@@ -3097,8 +3097,9 @@ function doProfileSignOut(){
 // Available all day on class days; a parent can also undo any same-day
 // check-in (kiosk ones included). RLS: sql/attendance-parent.sql.
 const CHECKIN_GATE = {'prog-cubs':'Cubs','prog-juniors':'Juniors','prog-teen':'Teens/Adults','prog-forms':['Juniors','Teens/Adults'],'prog-sparring':['Juniors','Teens/Adults'],'prog-kick':'Kickboxing','prog-ampd':"AMP'D",'prog-leader':'Leadership'};
-// Set lat/lng to enable optional location verification (source 'parent_gps').
-const DOJO_LOC = { lat: null, lng: null, radiusM: 250 };
+// 1901 Deerbrook Dr, Tyler TX 75703 (Paluxy Plaza). Enables the optional
+// "Verify my location" checkbox; verified check-ins record source 'parent_gps'.
+const DOJO_LOC = { lat: 32.27736, lng: -95.27572, radiusM: 250 };
 let CI_CACHE = { kids: [] };
 
 function ciYMD(){ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
