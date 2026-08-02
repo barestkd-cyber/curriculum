@@ -280,7 +280,7 @@
   </div>
   <div style="display:flex;align-items:center;gap:8px;">
     <div id="authBtn" onclick="handleAuthBtn()" style="cursor:pointer;padding:6px 14px;border:1px solid var(--gold);color:var(--gold);font-family:'DM Sans',sans-serif;font-size:0.75rem;letter-spacing:1px;text-transform:uppercase;font-weight:600;transition:all 0.2s;">Sign In</div>
-    <button id="adminLockBtn" onclick="toggleAdminLogin()" style="background:none;border:none;font-size:1.1rem;cursor:pointer;opacity:0.35;padding:4px 8px;" title="Admin">🔒</button>
+    <button id="adminLockBtn" onclick="toggleAdminLogin()" style="display:none;background:none;border:none;font-size:1.1rem;cursor:pointer;opacity:0.35;padding:4px 8px;" title="Admin">🔒</button>
   </div>
 </header>
 
@@ -1147,6 +1147,7 @@ function renderRotationInline() {
   var currentGroups = [];
   var nextGroups = [];
   var cycleEndDate = '';
+  var cycleStartDate = '';
   var testingDates = [];
   var futureCyclesList = [];
 
@@ -1176,22 +1177,32 @@ function renderRotationInline() {
         const d = new Date(active.awards_date + 'T00:00:00');
         cycleEndDate = d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
       }
+      if(active.start_date) {
+        const sd = new Date(active.start_date + 'T00:00:00');
+        if(!isNaN(sd)) cycleStartDate = sd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      }
     }
-    const future = window._cycleData.filter(c => !c.is_active).sort((a,b) => new Date(a.start_date) - new Date(b.start_date));
+    // Only genuinely upcoming cycles — without the date bound, every finished
+    // cycle in the table renders as "Next Rotation".
+    const today0 = new Date(); today0.setHours(0,0,0,0);
+    const future = window._cycleData
+      .filter(c => !c.is_active && c.start_date && new Date(c.start_date+'T00:00:00') >= today0)
+      .sort((a,b) => new Date(a.start_date+'T00:00:00') - new Date(b.start_date+'T00:00:00'));
     if(future.length) {
-      const next = future[0];
       const formMap = {
         'Dan-Gun': '단군', 'Do-San': '도산', 'Won-Hyo': '원효', 'Yul-Guk': '율곡',
         'Jun-Gun': '중근', 'Joong-Gun': '중근', 'Toi-Gye': '퇴계',
         'Hwa-Rang': '화랑', 'Choong-Moo': '충무'
       };
-      nextGroups = [
-        { group: 'Beginner',     form: next.form_beginner, korean: formMap[next.form_beginner]||'' },
-        { group: 'Intermediate', form: next.form_inter,    korean: formMap[next.form_inter]||'' },
-        { group: 'Advanced',     form: next.form_adv,      korean: formMap[next.form_adv]||'' },
-      ];
+      const groupsOf = function(c){ return [
+        { group: 'Beginner',     form: c.form_beginner, korean: formMap[c.form_beginner]||'' },
+        { group: 'Intermediate', form: c.form_inter,    korean: formMap[c.form_inter]||'' },
+        { group: 'Advanced',     form: c.form_adv,      korean: formMap[c.form_adv]||'' },
+      ]; };
+      nextGroups = groupsOf(future[0]);
       futureCyclesList = future.map(c => ({
-        label: c.name,
+        label: c.name || 'Upcoming Cycle',
+        groups: groupsOf(c), // each future cycle shows ITS OWN forms
         dates: c.start_date ? new Date(c.start_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + (c.awards_date ? ' – ' + new Date(c.awards_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '') : ''
       }));
     }
@@ -1222,7 +1233,11 @@ function renderRotationInline() {
   // Current cycle card
   var testingHtml = '';
   if(testingDates.length) {
-    testingHtml = testingDates.map(t => '<div>' + t.label + ' — ' + new Date(t.date+'T00:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric'}) + '</div>').join('');
+    testingHtml = testingDates.map(t => {
+      const d = t.date ? new Date(t.date+'T00:00:00') : null;
+      const ds = (d && !isNaN(d)) ? d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : 'date TBD';
+      return '<div>' + t.label + ' — ' + ds + '</div>';
+    }).join('');
   } else {
     testingHtml = 'Cubs — April 10<br>Juniors &amp; Adults — April 11<br>Late Testing — April 14';
   }
@@ -1230,7 +1245,7 @@ function renderRotationInline() {
   html += '<div style="background:#fff;border:2px solid #4caf50;border-radius:8px;padding:14px 16px;margin-bottom:20px;">'
     + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">'
     + '<div style="font-family:Bebas Neue,sans-serif;font-size:0.95rem;letter-spacing:2px;color:#4caf50;">Current Cycle</div>'
-    + '<div style="font-size:0.72rem;color:#aaa;margin-left:auto">Now' + (cycleEndDate ? ' – ' + cycleEndDate : ' – Apr 11, 2026') + '</div>'
+    + '<div style="font-size:0.72rem;color:#aaa;margin-left:auto">' + (cycleStartDate || 'Now') + (cycleEndDate ? ' – ' + cycleEndDate : '') + '</div>'
     + '</div>'
     + groupCards(currentGroups)
     + '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #eee;">'
@@ -1250,7 +1265,7 @@ function renderRotationInline() {
       + '<div style="font-family:Bebas Neue,sans-serif;font-size:0.88rem;letter-spacing:2px;color:#c9920a;">' + cycle.label + '</div>'
       + '<div style="font-size:0.72rem;color:#aaa;margin-left:auto">' + cycle.dates + '</div>'
       + '</div>'
-      + groupCards(nextGroups)
+      + groupCards(cycle.groups || nextGroups)
       + '</div>';
   });
 
@@ -1353,6 +1368,28 @@ var EVENTS = [
     ]
   },
 ];
+
+// Live events from the `events` table. renderEvents shows EVENTS_LIVE when
+// loaded and falls back to the hardcoded EVENTS array otherwise — before this,
+// the student page ONLY ever showed the hardcoded array and admin-entered
+// events were invisible.
+var EVENTS_LIVE = null;
+async function loadEventsData() {
+  try {
+    var er = await sb.from('events').select('*').order('sort_order', { ascending: true });
+    if (er.error) { console.error('events load:', er.error); return; }
+    if (!er.data || !er.data.length) return; // nothing entered yet — keep fallback
+    var byCat = {}, order = [];
+    er.data.forEach(function(r) {
+      var c = r.category || 'General';
+      if (!byCat[c]) { byCat[c] = []; order.push(c); }
+      byCat[c].push({ date: r.date, label: r.label, note: r.note || '', link: r.link || '', linkLabel: r.link_label || 'Open' });
+    });
+    EVENTS_LIVE = order.map(function(c) { return { category: c, items: byCat[c] }; });
+    // Repaint if the schedule/events screen is currently on screen.
+    if (document.getElementById('byDaySchedule')) renderEvents();
+  } catch(e) { console.error('events load error:', e); }
+}
 
 function renderEvents() {
   var main = document.getElementById('mainContent');
@@ -1498,7 +1535,7 @@ function renderEvents() {
 
   html += '<div style="font-family:Bebas Neue,sans-serif;font-size:1.3rem;letter-spacing:3px;color:#c9920a;margin-top:32px;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid #e8e0cc;">Events &amp; Announcements</div>';
 
-    EVENTS.forEach(function(section) {
+    (EVENTS_LIVE || EVENTS).forEach(function(section) {
     html += '<div style="margin-bottom:28px;">'
       + '<div style="font-family:Bebas Neue,sans-serif;font-size:1rem;letter-spacing:3px;color:#c9920a;margin-bottom:10px;">' + section.category + '</div>'
       + '<div style="display:flex;flex-direction:column;gap:8px;">';
@@ -1928,7 +1965,7 @@ async function loadAnnouncements() {
     document.getElementById('announcementBanner').style.display = 'block';
   } catch(e) {}
 }
-loadAnnouncements();
+// (called from the auth bootstrap at the bottom of the file, after login)
 
 // ─── ADMIN ────────────────────────────────────────────────────
 function toggleAdminLogin() {
@@ -2021,22 +2058,27 @@ async function openAdminPanel() {
   body.innerHTML = html;
 }
 
+// All five admin writers surface RLS/network errors — silently pretending a
+// blocked write succeeded is how non-staff got a fake-working admin panel.
 async function addAnnouncement() {
   var text = document.getElementById('newAnnoText').value.trim();
   if (!text) return;
-  await sb.from('announcements').insert({ text: text, active: true });
+  var r = await sb.from('announcements').insert({ text: text, active: true });
+  if (r.error) { alert('Save failed: ' + r.error.message); return; }
   loadAnnouncements();
   openAdminPanel();
 }
 
 async function toggleAnnouncement(id, active) {
-  await sb.from('announcements').update({ active: active }).eq('id', id);
+  var r = await sb.from('announcements').update({ active: active }).eq('id', id);
+  if (r.error) { alert('Save failed: ' + r.error.message); openAdminPanel(); return; }
   loadAnnouncements();
 }
 
 async function deleteAnnouncement(id) {
   if (!confirm('Delete this announcement?')) return;
-  await sb.from('announcements').delete().eq('id', id);
+  var r = await sb.from('announcements').delete().eq('id', id);
+  if (r.error) { alert('Delete failed: ' + r.error.message); return; }
   loadAnnouncements();
   openAdminPanel();
 }
@@ -2045,7 +2087,7 @@ async function addEvent() {
   var label = document.getElementById('newEvLabel').value.trim();
   var date = document.getElementById('newEvDate').value.trim();
   if (!label || !date) { alert('Event name and date are required.'); return; }
-  await sb.from('events').insert({
+  var r = await sb.from('events').insert({
     label: label,
     date: date,
     category: document.getElementById('newEvCat').value.trim() || 'General',
@@ -2054,15 +2096,18 @@ async function addEvent() {
     link_label: document.getElementById('newEvLinkLabel').value.trim(),
     sort_order: 999
   });
+  if (r.error) { alert('Save failed: ' + r.error.message); return; }
+  await loadEventsData();
   openAdminPanel();
-  renderEvents();
 }
 
 async function deleteEvent(id) {
   if (!confirm('Delete this event?')) return;
-  await sb.from('events').delete().eq('id', id);
+  var r = await sb.from('events').delete().eq('id', id);
+  if (r.error) { alert('Delete failed: ' + r.error.message); return; }
+  EVENTS_LIVE = null;
+  await loadEventsData();
   openAdminPanel();
-  renderEvents();
 }
 
 // ─── CUBS DATA ───────────────────────────────────────────────
@@ -2991,16 +3036,17 @@ async function loadUserProfile(){
     btn.textContent = name.split(' ')[0];
     btn.onclick = openProfile;
   }
-  // Auto-unlock admin if role is admin
+  // Admin lock button only exists for staff; students never see it.
+  const lockBtn = document.getElementById('adminLockBtn');
+  if(lockBtn) lockBtn.style.display = (currentRole === 'admin' || currentRole === 'instructor') ? '' : 'none';
   if(currentRole === 'admin'){
     isAdmin = true;
-    const lockBtn = document.getElementById('adminLockBtn');
     if(lockBtn){ lockBtn.textContent = '🔓'; lockBtn.style.opacity = '0.8'; }
   }
 }
 
 function handleAuthBtn(){
-  if(currentUser){ showUserMenu(); }
+  if(currentUser){ openProfile(); }
   else { openAuthModal(); }
 }
 
@@ -3106,6 +3152,9 @@ function renderQrWho(){
   const who = document.getElementById('profileQrWho');
   if(!who) return;
   const kids = CI_CACHE.allKids || [];
+  // Print button only when there is at least one real code to print.
+  const pb = document.getElementById('profilePrintBtn');
+  if(pb) pb.style.display = (kids.length || PROFILE_MY_IS_STUDENT) ? '' : 'none';
   if(!kids.length){ who.style.display = 'none'; return; }
   const chip = function(code, label){
     return '<button data-code="'+code+'" onclick="profileSetQr(this.dataset.code)" style="border:none;border-radius:999px;padding:6px 12px;font-size:.72rem;font-weight:600;cursor:pointer;background:#f2f2f2;color:#555;">'+label+'</button>';
@@ -3211,6 +3260,12 @@ async function loadProfileKids(){
     const kids = ks.data||[], enr = en.data||[], att = at.data||[];
     CI_CACHE.allKids = kids.map(function(k){ return { id: k.id, name: k.name||'Student' }; });
     renderQrWho(); // QR chips show every linked student, classes today or not
+    // A failed schedule read must NOT masquerade as "not enrolled".
+    if(sch.error){
+      console.error('schedule_template load:', sch.error);
+      box.innerHTML = '<div style="font-size:.72rem;color:#c8102e;text-align:center;padding:4px 0 2px;">Couldn\'t load today\'s schedule — check in at the front desk.</div>';
+      return;
+    }
     const order = ['MON','TUE','WED','THU','FRI','SAT'];
     // Same label the CRM roster + kiosk key on — do not reformat.
     const labelOf = function(r){ return (r.label||'Class')+(r.belt?(' · '+r.belt):'')+(r.time?('  '+order[r.day]+' '+r.time):''); };
@@ -3257,8 +3312,11 @@ async function curToggleCheckin(ki, ci){
   const kid = CI_CACHE.kids[ki]; if(!kid) return;
   const cls = kid.classes[ci]; if(!cls) return;
   if(cls.attId){
-    const r = await sb.from('attendance').delete().eq('id', cls.attId);
+    const r = await sb.from('attendance').delete().eq('id', cls.attId).select('id');
     if(r.error){ alert('Could not undo: '+r.error.message); return; }
+    // RLS can filter a delete to zero rows without an error (e.g. the
+    // same-day window has passed) — treat that as a failure, not success.
+    if(!r.data || !r.data.length){ alert("Couldn't undo this check-in — ask at the front desk."); return; }
   } else {
     let source = 'parent';
     if(DOJO_LOC.lat!=null){
@@ -3274,7 +3332,10 @@ async function curToggleCheckin(ki, ci){
     const row = { student_id: kid.id, class_label: cls.label, program: cls.gate, class_date: ciYMD(),
                   status: 'confirmed', source: source, recorded_by: (currentUser && currentUser.email) || 'parent' };
     const r = await sb.from('attendance').insert(row);
-    if(r.error){ alert('Check-in failed: '+r.error.message); return; }
+    if(r.error){
+      alert(String(r.error.code)==='23505' ? 'Already checked in — you\'re good!' : 'Check-in failed: '+r.error.message);
+      if(String(r.error.code)!=='23505') return;
+    }
   }
   loadProfileKids();
 }
@@ -3282,25 +3343,28 @@ async function curToggleCheckin(ki, ci){
 // ─── LOAD CYCLE DATA FROM SUPABASE ───────────────────────────
 async function loadCycleData() {
   try {
-    const { data } = await sb.from('cycle_data').select('*').order('updated_at', { ascending: false });
+    const { data, error } = await sb.from('cycle_data').select('*').order('updated_at', { ascending: false });
+    if(error){ console.error('cycle_data load:', error); return; }
     if(data && data.length) {
       window._cycleData = data;
-      // Re-render the cycle section
-      const cycleSection = document.querySelector('[data-section="cycle"]');
-      if(cycleSection) {
-        // trigger re-render by finding the cycle card and rebuilding
-        buildFilterTabs();
-        renderCards(document.querySelector('.filter-tab.active')?.dataset?.value || 'all');
-      }
+      // If the Rotation view is on screen, repaint it with the live data.
+      const active = document.querySelector('.filter-tab.active');
+      if(active && active.dataset && active.dataset.value === 'rotation') renderRotationInline();
     }
   } catch(e) {
-    console.log('Cycle data load error:', e);
+    console.error('Cycle data load error:', e);
   }
 }
 
-// Init auth on load
-initAuth();
-loadCycleData();
+// Init auth on load, THEN the session-dependent reads. Firing them before the
+// session exists (the old code did) made RLS return nothing and the hardcoded
+// fallbacks stick.
+(async function(){
+  await initAuth();
+  loadCycleData();
+  loadEventsData();
+  loadAnnouncements();
+})();
 
 // ─── INIT ────────────────────────────────────────────────────
 buildFilterTabs();
@@ -3314,7 +3378,7 @@ renderCards();
     <div id="profileQrWho" style="display:none;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:8px;"></div>
     <canvas id="profileQrCanvas" style="width:220px;height:220px;"></canvas>
     <div id="profileCodeLabel" style="font-size:.62rem;color:#bbb;margin:8px 0 6px;word-break:break-all;"></div>
-    <button onclick="printQrCodes()" style="background:none;border:none;color:#c8102e;font-size:.72rem;font-weight:600;cursor:pointer;margin-bottom:14px;text-decoration:underline;">🖨 Print codes</button>
+    <button id="profilePrintBtn" onclick="printQrCodes()" style="display:none;background:none;border:none;color:#c8102e;font-size:.72rem;font-weight:600;cursor:pointer;margin-bottom:14px;text-decoration:underline;">🖨 Print codes</button>
     <div id="profileKids" style="text-align:left;margin-bottom:14px;"></div>
     <button onclick="doProfileSignOut()" style="width:100%;padding:12px;background:#f5f5f5;color:#c8102e;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Sign Out</button>
     <button onclick="closeProfile()" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:1.2rem;cursor:pointer;color:#888;">✕</button>
