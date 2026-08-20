@@ -1374,6 +1374,26 @@ var EVENTS = [
 // the student page ONLY ever showed the hardcoded array and admin-entered
 // events were invisible.
 var EVENTS_LIVE = null;
+var BLACKOUTS_LIVE = null;
+async function loadClosures() {
+  try {
+    var today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+    var r = await sb.from('calendar_events')
+      .select('title,event_date,blocks_classes,blocks_trials,blocks_privates')
+      .eq('type', 'blackout').gte('event_date', today)
+      .order('event_date', { ascending: true }).limit(12);
+    if (r.error) { console.error('closures load:', r.error); return; }
+    BLACKOUTS_LIVE = r.data || [];
+    if (document.getElementById('byDaySchedule')) renderEvents();
+  } catch(e) { console.error('closures load error:', e); }
+}
+function closureDatePretty(ymd) {
+  var p = String(ymd || '').split('-').map(Number);
+  if (p.length !== 3 || !p[0]) return String(ymd || '');
+  var d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+  return d.toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' });
+}
+
 async function loadEventsData() {
   try {
     var er = await sb.from('events').select('*').order('sort_order', { ascending: true });
@@ -1534,6 +1554,29 @@ function renderEvents() {
     + '<div style="font-size:0.7rem;color:#555;margin-bottom:20px;"><span style="color:#7b2d8b;font-weight:700;">LEADER TRAINING</span> Tuesday: 5:45</div>';
 
   html += '<div style="font-family:Bebas Neue,sans-serif;font-size:1.3rem;letter-spacing:3px;color:#c9920a;margin-top:32px;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid #e8e0cc;">Events &amp; Announcements</div>';
+
+  // Upcoming closures, straight off the CRM calendar. Partial closures say
+  // what stays open; a full closure is the usual case and says so plainly.
+  if (BLACKOUTS_LIVE && BLACKOUTS_LIVE.length) {
+    html += '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">';
+    BLACKOUTS_LIVE.forEach(function(b) {
+      var open = [];
+      if (!b.blocks_classes) open.push('classes still on');
+      if (!b.blocks_privates) open.push('private lessons still available');
+      if (!b.blocks_trials) open.push('trials still bookable');
+      var note = open.length
+        ? open.join(' \u00b7 ').replace(/^./, function(c){ return c.toUpperCase(); })
+        : 'No classes, lessons, or trials this day';
+      var safeTitle = String(b.title || 'Closed').replace(/[<>&"]/g, '');
+      html += '<div style="background:#fdf3f2;border:1px solid #e6b8b2;border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">'
+        + '<div style="background:#fff;border:1px solid #e6b8b2;border-radius:5px;padding:4px 10px;font-size:0.7rem;font-weight:700;color:#b3372c;white-space:nowrap;">' + closureDatePretty(b.event_date) + '</div>'
+        + '<div style="flex:1;">'
+        + '<div style="font-size:0.9rem;font-weight:700;color:#111">' + safeTitle + '</div>'
+        + '<div style="font-size:0.75rem;color:#888;margin-top:1px">' + note + '</div>'
+        + '</div></div>';
+    });
+    html += '</div>';
+  }
 
     (EVENTS_LIVE || EVENTS).forEach(function(section) {
     html += '<div style="margin-bottom:28px;">'
@@ -3363,6 +3406,7 @@ async function loadCycleData() {
   await initAuth();
   loadCycleData();
   loadEventsData();
+  loadClosures();
   loadAnnouncements();
 })();
 
