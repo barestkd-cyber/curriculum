@@ -28,17 +28,16 @@
 
   /* HEADER */
   header {
-    background: var(--black);
+    background: var(--white);
     padding: 0 24px;
     display: flex; align-items: center; justify-content: space-between;
     position: sticky; top: 0; z-index: 100;
     border-bottom: 3px solid var(--gold);
     min-height: 64px;
   }
-  /* The wordmark is transparent with BLACK lettering, so on this black
-     header it needs its own light ground or half of it disappears. */
-  .logo-img { height: 26px; width: auto; display: block; background: #fff; padding: 5px 9px; border-radius: 5px; }
-  .header-sub { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 2px; }
+  /* The header is white, so the wordmark sits on it directly - no chip. */
+  .logo-img { height: 30px; width: auto; display: block; }
+  .header-sub { font-size: 0.58rem; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 2px; margin-top: 2px; }
 
   /* SEARCH */
   .search-bar {
