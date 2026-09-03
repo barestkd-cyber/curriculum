@@ -33,11 +33,11 @@
     display: flex; align-items: center; justify-content: space-between;
     position: sticky; top: 0; z-index: 100;
     border-bottom: 3px solid var(--gold);
-    min-height: 76px;
+    min-height: 84px;
   }
-  /* Black header, so the transparent black-lettered wordmark rides its own
-     white block or half of it vanishes into the background. */
-  .logo-img { height: 26px; width: auto; display: block; background: #fff; padding: 6px 10px; border-radius: 5px; }
+  /* The reversed mark is drawn in white for exactly this background, so it
+     sits straight on the header - no box behind it. */
+  .logo-img { height: 42px; width: auto; display: block; }
   .header-sub { font-size: 0.58rem; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 2px; margin-top: 7px; }
 
   /* SEARCH */
@@ -276,7 +276,7 @@
 
 <header>
   <div>
-    <img class="logo-img" src="logo-headline.png" alt="Bares Taekwondo Fitness">
+    <img class="logo-img" src="logo-block-white.png" alt="Bares Taekwondo Fitness">
     <div class="header-sub">Student Curriculum</div>
   </div>
   <div style="display:flex;align-items:center;gap:8px;">
