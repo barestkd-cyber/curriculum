@@ -3291,7 +3291,7 @@ async function renderProfileBelts(){
 
   const belts = window.BELTS || [];
   CI_STRIPE_ROWS = [];
-  let h = '<div style="font-size:.66rem;color:#aaa;margin-bottom:2px;">Tap a stripe, say who gave it, and submit. Your instructor confirms it in class.</div>';
+  let h = '';
   kids.forEach(function(k){
     const belt = belts.find(function(b){ return String(b.name||'').toLowerCase() === String(k.rank||'').toLowerCase(); });
     if(!belt){
@@ -3579,7 +3579,7 @@ async function loadProfileKids(){
       }
     });
     if(DOJO_LOC.lat!=null){
-      h += '<div style="font-size:.68rem;color:#aaa;margin-top:6px;text-align:center;">Showing the classes on your student\'s roster. 📍 Check-in works at the studio (location required) — or scan at the front desk.</div>';
+      h += '<div style="font-size:.68rem;color:#aaa;margin-top:6px;text-align:center;">📍 Check-in works at the studio (location required) — or scan at the front desk.</div>';
     }
     box.innerHTML = h;
   }catch(e){ console.error('loadProfileKids', e); }
