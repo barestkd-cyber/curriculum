@@ -3187,11 +3187,8 @@ async function openProfile(){
   PROFILE_MY_CODE = String(codeVal);
   document.getElementById('profileQrWho').style.display = 'none';
   profileSetQr(PROFILE_MY_CODE);
-  // Every visit starts with the code put away.
-  const qb = document.getElementById('profileQrBlock');
-  if(qb) qb.style.display = 'none';
-  const qbt = document.getElementById('profileQrBtn');
-  if(qbt) qbt.textContent = 'View check-in code';
+  // Every visit starts with the code screen shut.
+  closeQrModal();
   document.getElementById('profileModal').style.display = 'flex';
   loadProfileKids(); // parent check-in section + per-student QR chips, fills in async
 }
@@ -3361,15 +3358,16 @@ async function renderProfileBelts(){
   });
   box.innerHTML = h;
 }
-/* The code is hidden until asked for. Tapping View reveals it in place
-   rather than opening anything, so the check-in list above it stays put. */
+/* The code opens over the profile on its own screen, which is how it gets
+   used - held up to be scanned - and keeps it from shoving the belt and
+   the check-in list around underneath it. */
 function profileToggleQr(){
-  const box = document.getElementById('profileQrBlock');
-  const btn = document.getElementById('profileQrBtn');
-  if(!box) return;
-  const open = box.style.display !== 'none';
-  box.style.display = open ? 'none' : '';
-  if(btn) btn.textContent = open ? 'View check-in code' : 'Hide check-in code';
+  const m = document.getElementById('qrModal'); if(!m) return;
+  m.style.display = 'flex';
+}
+function closeQrModal(){
+  const m = document.getElementById('qrModal'); if(m) m.style.display = 'none';
+  document.body.classList.remove('qr-printing');
 }
 
 function renderQrWho(){
@@ -3667,6 +3665,21 @@ async function loadCycleData() {
 buildFilterTabs();
 renderCards();
 </script>
+<!-- The check-in code, on its own screen. z-index above the profile so it
+     covers it rather than living inside it. -->
+<div id="qrModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:700;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;padding:26px 24px;max-width:340px;width:90%;text-align:center;position:relative;">
+    <div style="font-family:'Archivo Black',sans-serif;letter-spacing:2px;font-size:1.1rem;color:#111;margin-bottom:4px;">Check-In Code</div>
+    <div style="font-size:.68rem;color:#999;margin-bottom:14px;">Show this at the front desk to scan in.</div>
+    <div id="profileQrWho" style="display:none;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:10px;"></div>
+    <canvas id="profileQrCanvas" style="width:220px;height:220px;"></canvas>
+    <div id="profileCodeLabel" style="font-size:.62rem;color:#bbb;margin:8px 0 14px;word-break:break-all;"></div>
+    <button onclick="printQrCodes()" style="background:none;border:none;color:#EA0000;font-size:.72rem;font-weight:600;cursor:pointer;text-decoration:underline;margin-bottom:14px;">🖨 Print check-in code</button>
+    <button onclick="closeQrModal()" style="width:100%;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Back</button>
+    <button onclick="closeQrModal()" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:1.2rem;cursor:pointer;color:#888;">✕</button>
+  </div>
+</div>
+
 <div id="profileModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:600;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;padding:26px 24px;max-width:340px;width:90%;text-align:center;position:relative;max-height:88vh;overflow-y:auto;">
     <div style="font-family:'Archivo Black',sans-serif;letter-spacing:2px;font-size:1.4rem;color:#111;">Profile</div>
@@ -3678,14 +3691,8 @@ renderCards();
     <!-- Then the code, behind a tap. Most visits never need it. -->
     <div id="profileCodeBtns" style="display:none;gap:16px;justify-content:center;margin-bottom:12px;">
       <button id="profileQrBtn" onclick="profileToggleQr()" style="background:none;border:none;color:#EA0000;font-size:.72rem;font-weight:600;cursor:pointer;text-decoration:underline;">View check-in code</button>
-      <button id="profilePrintBtn" onclick="printQrCodes()" style="background:none;border:none;color:#EA0000;font-size:.72rem;font-weight:600;cursor:pointer;text-decoration:underline;">🖨 Print check-in code</button>
     </div>
-    <div id="profileQrBlock" style="display:none;margin-bottom:14px;">
-      <div style="font-size:.7rem;letter-spacing:1px;text-transform:uppercase;color:#999;margin-bottom:8px;">My Check-In Code</div>
-      <div id="profileQrWho" style="display:none;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:8px;"></div>
-      <canvas id="profileQrCanvas" style="width:220px;height:220px;"></canvas>
-      <div id="profileCodeLabel" style="font-size:.62rem;color:#bbb;margin:8px 0 6px;word-break:break-all;"></div>
-    </div>
+
     <button onclick="doProfileSignOut()" style="width:100%;padding:12px;background:#f5f5f5;color:#EA0000;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Sign Out</button>
     <button onclick="closeProfile()" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:1.2rem;cursor:pointer;color:#888;">✕</button>
   </div>
