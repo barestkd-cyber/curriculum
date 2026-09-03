@@ -3177,7 +3177,8 @@ let PROFILE_MY_CODE = null; // the account holder's own code (contact id or auth
 let PROFILE_MY_IS_STUDENT = false; // true only when the account has its own contacts row — parents don't need a code
 
 async function openProfile(){
-  document.getElementById('profileEmail').textContent = currentUser.email;
+  // The account email used to print here. The student's name says who this
+  // is (owner, 2026-09-03), and the address added nothing.
   let codeVal = currentUser.id;
   PROFILE_MY_IS_STUDENT = false;
   try {
@@ -3272,10 +3273,9 @@ async function curSubmitStripe(ri){
 }
 
 async function renderProfileBelts(){
-  const box = document.getElementById('profileBelts'); if(!box) return;
-  const kids = CI_CACHE.allKids || [];
-  if(!kids.length){ box.style.display = 'none'; return; }
-  box.style.display = '';
+  // Same list, same order as the pages: the index IS the page.
+  const kids = CI_CACHE.kids || [];
+  if(!kids.length) return;
 
   let earned = {};
   try{
@@ -3288,12 +3288,12 @@ async function renderProfileBelts(){
 
   const belts = window.BELTS || [];
   CI_STRIPE_ROWS = [];
-  let h = '';
-  kids.forEach(function(k){
+  kids.forEach(function(k, ki){
+    let h = '';
     const belt = belts.find(function(b){ return String(b.name||'').toLowerCase() === String(k.rank||'').toLowerCase(); });
+    const slot = document.getElementById('pf-belt-'+ki);
     if(!belt){
-      h += '<div style="font-weight:700;font-size:.85rem;color:#111;margin:10px 0 2px;">'+k.name+'</div>'
-        + '<div style="font-size:.72rem;color:#aaa;padding-bottom:4px;">'+(k.rank ? k.rank+' — no stripe chart for this rank yet.' : 'No rank on file yet — ask at the front desk.')+'</div>';
+      if(slot) slot.innerHTML = '<div style="font-size:.72rem;color:#aaa;padding-bottom:4px;text-align:center;">'+(k.rank ? k.rank+' — no stripe chart for this rank yet.' : 'No rank on file yet — ask at the front desk.')+'</div>';
       return;
     }
     const st = belt.stripes || {};
@@ -3304,9 +3304,7 @@ async function renderProfileBelts(){
       const key = window.getStripeId ? window.getStripeId(x, belt.name) : x.id;
       if(mine[key]) got++;
     });
-    h += '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:10px 0 4px;">'
-      + '<span style="font-weight:700;font-size:.85rem;color:#111;">'+k.name+'</span>'
-      + '<span style="font-size:.68rem;color:#999;">'+belt.name+(all.length?' · '+got+'/'+all.length+' stripes':'')+'</span></div>';
+    h += '<div style="font-size:.68rem;color:#999;margin-bottom:5px;text-align:center;">'+belt.name+(all.length?' · '+got+'/'+all.length+' stripes':'')+'</div>';
     // The belt and the list below drive the SAME picker. Row indices are
     // assigned in this exact order a few lines down, so the belt's stripes
     // map onto them by position - black stripes then coloured, which is how
@@ -3355,8 +3353,8 @@ async function renderProfileBelts(){
       });
       h += '</div>';
     }
+    if(slot) slot.innerHTML = h;
   });
-  box.innerHTML = h;
 }
 /* The code opens over the profile on its own screen, which is how it gets
    used - held up to be scanned - and keeps it from shoving the belt and
@@ -3368,6 +3366,29 @@ function profileToggleQr(){
 function closeQrModal(){
   const m = document.getElementById('qrModal'); if(m) m.style.display = 'none';
   document.body.classList.remove('qr-printing');
+}
+
+/* A dot per student, filled for the page you are on. Nothing is drawn for
+   a single student, since there is nothing to swipe to. */
+function renderProfileDots(){
+  const d = document.getElementById('profileDots');
+  const pager = document.getElementById('profilePager');
+  const n = (CI_CACHE.kids || []).length;
+  if(!d || !pager) return;
+  if(n < 2){ d.style.display = 'none'; return; }
+  d.style.display = 'flex';
+  const draw = function(active){
+    let h = '';
+    for(let i = 0; i < n; i++){
+      h += '<span style="width:7px;height:7px;border-radius:50%;background:'+(i===active?'#111':'#ddd')+';"></span>';
+    }
+    d.innerHTML = h;
+  };
+  draw(0);
+  pager.onscroll = function(){
+    const w = pager.clientWidth || 1;
+    draw(Math.max(0, Math.min(n - 1, Math.round(pager.scrollLeft / w))));
+  };
 }
 
 function renderQrWho(){
@@ -3494,7 +3515,7 @@ function ciGeoCheck(){
 }
 
 async function loadProfileKids(){
-  const box = document.getElementById('profileKids');
+  const box = document.getElementById('profilePager');
   if(!box || !currentUser) return;
   box.innerHTML = '';
   try{
@@ -3520,7 +3541,6 @@ async function loadProfileKids(){
     const kids = ks.data||[], enr = en.data||[], att = at.data||[];
     CI_CACHE.allKids = kids.map(function(k){ return { id: k.id, name: k.name||'Student', rank: k.rank||'' }; });
     renderQrWho(); // QR chips show every linked student, classes today or not
-    renderProfileBelts();
     // A failed schedule read must NOT masquerade as "not enrolled".
     if(sch.error){
       console.error('schedule_template load:', sch.error);
@@ -3554,13 +3574,22 @@ async function loadProfileKids(){
         return { label: lbl, disp: dispOf(r), gate: Array.isArray(g)?g[0]:g, attId: hit?hit.id:null,
                  rostered: inProg && ciBeltOk(r.belt, k.rank) };
       });
-      return { id: k.id, name: k.name||'Student', classes: classes };
+      return { id: k.id, name: k.name||'Student', rank: k.rank||'', classes: classes };
     }); // unenrolled kids stay listed — could be a drop-in, and parents should see them
 
     if(!CI_CACHE.kids.length) return;
-    let h = '<div style="font-size:.7rem;letter-spacing:1px;text-transform:uppercase;color:#999;margin-bottom:8px;text-align:center;">Class Check-In · Today</div>';
+    // The page skeleton: one per student, each with a slot for its belt and
+    // a slot for its classes. The two renderers fill their own slots.
+    box.innerHTML = CI_CACHE.kids.map(function(k, ki){
+      return '<div style="flex:0 0 100%;min-width:0;scroll-snap-align:start;">'
+        + '<div style="font-family:\'Archivo Black\',sans-serif;font-size:1.05rem;color:#111;text-align:center;margin-bottom:12px;">'+k.name+'</div>'
+        + '<div id="pf-belt-'+ki+'" style="text-align:left;margin-bottom:14px;"></div>'
+        + '<div id="pf-cls-'+ki+'" style="text-align:left;"></div>'
+        + '</div>';
+    }).join('');
     CI_CACHE.kids.forEach(function(k, ki){
-      h += '<div style="font-weight:700;font-size:.85rem;color:#111;margin:8px 0 4px;">'+k.name+'</div>';
+      const slot = document.getElementById('pf-cls-'+ki); if(!slot) return;
+      let h = '<div style="font-size:.7rem;letter-spacing:1px;text-transform:uppercase;color:#999;margin-bottom:8px;text-align:center;">Class Check-In · Today</div>';
       if(!k.classes.length){
         h += '<div style="font-size:.72rem;color:#aaa;padding:2px 0 6px;">Not enrolled in a class today — drop-in or ask at the desk.</div>';
       }
@@ -3575,11 +3604,14 @@ async function loadProfileKids(){
         other.forEach(function(ci){ h += ciClassBtn(ki, ci, k.classes[ci]); });
         h += '</div>';
       }
+      slot.innerHTML = h;
     });
-    if(DOJO_LOC.lat!=null){
-      h += '<div style="font-size:.68rem;color:#aaa;margin-top:6px;text-align:center;">📍 Check-in works at the studio (location required) — or scan at the front desk.</div>';
-    }
-    box.innerHTML = h;
+    // Belts LAST: the slots it writes into only exist once the pages above
+    // have been built. Called any earlier it finds nothing and renders nothing.
+    renderProfileBelts();
+    const noteEl = document.getElementById('profileNote');
+    if(noteEl && DOJO_LOC.lat != null) noteEl.style.display = '';
+    renderProfileDots();
   }catch(e){ console.error('loadProfileKids', e); }
 }
 
@@ -3682,16 +3714,17 @@ renderCards();
 
 <div id="profileModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:600;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;padding:26px 24px;max-width:340px;width:90%;text-align:center;position:relative;max-height:88vh;overflow-y:auto;">
-    <div style="font-family:'Archivo Black',sans-serif;letter-spacing:2px;font-size:1.4rem;color:#111;">Profile</div>
-    <div id="profileEmail" style="font-size:.75rem;color:#888;margin-bottom:18px;"></div>
-    <!-- Belt first: who they are and where they are up to. -->
-    <div id="profileBelts" style="text-align:left;margin:4px 0 14px;"></div>
-    <!-- Then the check-in, which is what they came to do. -->
-    <div id="profileKids" style="text-align:left;margin-bottom:14px;"></div>
+    <!-- One student per page. The name lives on the page, so it changes
+         as you swipe; no heading is needed above it. -->
+    <div id="profilePager" style="display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:14px;"></div>
+    <div id="profileDots" style="display:none;justify-content:center;gap:6px;margin:10px 0 4px;"></div>
     <!-- Then the code, behind a tap. Most visits never need it. -->
-    <div id="profileCodeBtns" style="display:none;gap:16px;justify-content:center;margin-bottom:12px;">
+    <div id="profileCodeBtns" style="display:none;gap:16px;justify-content:center;margin-bottom:10px;">
       <button id="profileQrBtn" onclick="profileToggleQr()" style="background:none;border:none;color:#EA0000;font-size:.72rem;font-weight:600;cursor:pointer;text-decoration:underline;">View check-in code</button>
     </div>
+    <!-- Sits between the code button and Sign Out, which keeps those two
+         apart (owner, 2026-09-03). -->
+    <div id="profileNote" style="display:none;font-size:.68rem;color:#aaa;margin-bottom:14px;">Check in at the studio via location or front desk scan.</div>
 
     <button onclick="doProfileSignOut()" style="width:100%;padding:12px;background:#f5f5f5;color:#EA0000;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Sign Out</button>
     <button onclick="closeProfile()" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:1.2rem;cursor:pointer;color:#888;">✕</button>
@@ -3700,6 +3733,7 @@ renderCards();
 <style>
 #qrPrintArea{display:none;}
 @media print{
+  #profilePager::-webkit-scrollbar{display:none;}
   body.qr-printing > *:not(#qrPrintArea){display:none !important;}
   body.qr-printing #qrPrintArea{display:flex !important;flex-wrap:wrap;gap:24px;padding:24px;}
   .qr-print-card{width:300px;text-align:center;border:1px dashed #999;border-radius:12px;padding:18px;page-break-inside:avoid;}
