@@ -3671,7 +3671,9 @@ renderCards();
   <div style="background:#fff;border-radius:14px;padding:26px 24px;max-width:340px;width:90%;text-align:center;position:relative;max-height:88vh;overflow-y:auto;">
     <div style="font-family:'Archivo Black',sans-serif;letter-spacing:2px;font-size:1.4rem;color:#111;">Profile</div>
     <div id="profileEmail" style="font-size:.75rem;color:#888;margin-bottom:18px;"></div>
-    <!-- Check-in first: it is why they opened this. -->
+    <!-- Belt first: who they are and where they are up to. -->
+    <div id="profileBelts" style="text-align:left;margin:4px 0 14px;"></div>
+    <!-- Then the check-in, which is what they came to do. -->
     <div id="profileKids" style="text-align:left;margin-bottom:14px;"></div>
     <!-- Then the code, behind a tap. Most visits never need it. -->
     <div id="profileCodeBtns" style="display:none;gap:16px;justify-content:center;margin-bottom:12px;">
@@ -3684,8 +3686,6 @@ renderCards();
       <canvas id="profileQrCanvas" style="width:220px;height:220px;"></canvas>
       <div id="profileCodeLabel" style="font-size:.62rem;color:#bbb;margin:8px 0 6px;word-break:break-all;"></div>
     </div>
-    <!-- Belt last: the thing they come back to after class. -->
-    <div id="profileBelts" style="text-align:left;margin:4px 0 14px;"></div>
     <button onclick="doProfileSignOut()" style="width:100%;padding:12px;background:#f5f5f5;color:#EA0000;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Sign Out</button>
     <button onclick="closeProfile()" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:1.2rem;cursor:pointer;color:#888;">✕</button>
   </div>
