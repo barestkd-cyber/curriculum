@@ -3154,7 +3154,11 @@ function renderQrWho(){
   // account resolves to its own contacts row). Codes identify students, and
   // every scan is one person — there is no whole-family code.
   who.innerHTML = kids.map(function(k){ return chip(k.id, (k.name||'Student').split(' ')[0]); }).join('')
-    + (PROFILE_MY_IS_STUDENT ? chip(PROFILE_MY_CODE, 'Me') : '');
+    // ...plus a "Me" chip, unless the account holder is already listed as one
+    // of their own students. Two chips for one person meant tapping the second
+    // one visibly did nothing (found 2026-09-02).
+    + ((PROFILE_MY_IS_STUDENT && !kids.some(function(k){ return String(k.id) === String(PROFILE_MY_CODE); }))
+        ? chip(PROFILE_MY_CODE, 'Me') : '');
   who.style.display = 'flex';
   if(kids.length === 1){
     profileSetQr(kids[0].id);          // one student: show their code right away
@@ -3201,6 +3205,19 @@ function doProfileSignOut(){
 // class_label key), so the instructor's end-of-class pass sees them checked.
 // Available all day on class days; a parent can also undo any same-day
 // check-in (kiosk ones included). RLS: sql/attendance-parent.sql.
+// Belt ranges, verbatim from the kiosk (BaresCRM/checkin.html) so the two
+// check-in doors can never disagree about who is on a class's roster.
+// Anything not listed here has no belt restriction.
+const CI_BELT_ORDER = ['white','yellow','orange','green','purple','blue','brown','red','black'];
+const CI_RANGE = {'WHI-ORG':[0,2],'WHI-BLU':[0,5],'GR-BLK':[3,8],'BR-BLK':[6,8]};
+function ciTier(rank){ if(!rank) return -1; const r = String(rank).toLowerCase();
+  for(let i=CI_BELT_ORDER.length-1;i>=0;i--) if(r.indexOf(CI_BELT_ORDER[i])!==-1) return i; return -1; }
+/* Fail-open, like the kiosk: an unranked student is on every list rather
+   than missing from their own. */
+function ciBeltOk(beltRange, rank){
+  const R = CI_RANGE[beltRange]; if(!R) return true;
+  const t = ciTier(rank); return t < 0 || (t >= R[0] && t <= R[1]);
+}
 const CHECKIN_GATE = {'prog-cubs':'Cubs','prog-juniors':'Juniors','prog-teen':'Teens/Adults','prog-forms':['Juniors','Teens/Adults'],'prog-sparring':['Juniors','Teens/Adults'],'prog-kick':'Kickboxing','prog-ampd':"AMP'D",'prog-leader':'Leadership'};
 // 1901 Deerbrook Dr, Tyler TX 75703 (Paluxy Plaza). Location is a FENCE for
 // the app path (per Mr. Bares): outside the radius, denied, or unavailable
@@ -3243,7 +3260,7 @@ async function loadProfileKids(){
 
     const dayIdx = (new Date().getDay()+6)%7; // 0=Mon … 6=Sun
     const [ks, en, sch, at] = await Promise.all([
-      sb.from('students').select('id,name').in('id', ids),
+      sb.from('students').select('id,name,rank').in('id', ids),
       sb.from('enrollments').select('student_id,program').in('student_id', ids).eq('status','active'),
       sb.from('schedule_template').select('day,time,label,belt,prog_css'),
       sb.from('attendance').select('id,student_id,class_label').in('student_id', ids).eq('class_date', ciYMD())
@@ -3264,15 +3281,19 @@ async function loadProfileKids(){
 
     CI_CACHE.kids = kids.map(function(k){
       const progs = enr.filter(function(e){ return e.student_id===k.id; }).map(function(e){ return e.program; });
-      const classes = todays.filter(function(r){
-        const g = CHECKIN_GATE[r.prog_css]||'Juniors';
-        const list = Array.isArray(g)?g:[g];
-        return list.some(function(p){ return progs.indexOf(p)!==-1; });
-      }).map(function(r){
+      // EVERY class today is listed, each marked rostered or not. Rostered
+      // means both halves agree: an active enrollment in the class's program
+      // AND the student's belt inside the class's range. The rest are still
+      // one tap away under "view more", for a make-up, a drop-in, or a
+      // roster that was never set up quite right.
+      const classes = todays.map(function(r){
         const lbl = labelOf(r);
         const g = CHECKIN_GATE[r.prog_css]||'Juniors';
+        const list = Array.isArray(g)?g:[g];
+        const inProg = list.some(function(p){ return progs.indexOf(p)!==-1; });
         const hit = att.find(function(a){ return a.student_id===k.id && a.class_label===lbl; });
-        return { label: lbl, gate: Array.isArray(g)?g[0]:g, attId: hit?hit.id:null };
+        return { label: lbl, gate: Array.isArray(g)?g[0]:g, attId: hit?hit.id:null,
+                 rostered: inProg && ciBeltOk(r.belt, k.rank) };
       });
       return { id: k.id, name: k.name||'Student', classes: classes };
     }); // unenrolled kids stay listed — could be a drop-in, and parents should see them
@@ -3284,19 +3305,42 @@ async function loadProfileKids(){
       if(!k.classes.length){
         h += '<div style="font-size:.72rem;color:#aaa;padding:2px 0 6px;">Not enrolled in a class today — drop-in or ask at the desk.</div>';
       }
-      k.classes.forEach(function(c, ci){
-        const on = !!c.attId;
-        h += '<button onclick="curToggleCheckin('+ki+','+ci+')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;padding:10px 12px;margin-bottom:6px;border-radius:8px;cursor:pointer;font-size:.78rem;'
-          + (on ? 'background:#e6f6ec;border:1.5px solid #2ecc71;color:#1e9e54;font-weight:700;'
-                : 'background:#fafafa;border:1.5px solid #ddd;color:#333;')
-          + '"><span>'+c.label.replace(/\s{2,}/g,' · ')+'</span><span style="white-space:nowrap;">'+(on?'✓ In · undo':'Check in')+'</span></button>';
-      });
+      // A class already checked into always shows up front, even if it was
+      // reached through "view more" - a check-in must never hide itself.
+      const mine = [], other = [];
+      k.classes.forEach(function(c, ci){ (c.rostered || c.attId ? mine : other).push(ci); });
+      mine.forEach(function(ci){ h += ciClassBtn(ki, ci, k.classes[ci]); });
+      if(other.length){
+        h += '<button onclick="ciToggleMore('+ki+')" id="cimore-btn-'+ki+'" style="width:100%;text-align:center;padding:7px;margin-bottom:6px;border:none;background:none;color:#888;font-size:.7rem;cursor:pointer;text-decoration:underline;">View '+other.length+' more class'+(other.length>1?'es':'')+'</button>';
+        h += '<div id="cimore-'+ki+'" style="display:none;">';
+        other.forEach(function(ci){ h += ciClassBtn(ki, ci, k.classes[ci]); });
+        h += '</div>';
+      }
     });
     if(DOJO_LOC.lat!=null){
-      h += '<div style="font-size:.68rem;color:#aaa;margin-top:6px;text-align:center;">📍 Check-in works at the studio (location required) — or scan at the front desk.</div>';
+      h += '<div style="font-size:.68rem;color:#aaa;margin-top:6px;text-align:center;">Showing the classes on your student\'s roster. 📍 Check-in works at the studio (location required) — or scan at the front desk.</div>';
     }
     box.innerHTML = h;
   }catch(e){ console.error('loadProfileKids', e); }
+}
+
+/* One check-in button. Identical whether the class is on the student's
+   roster or reached through "view more" - the only difference is where it
+   sits, never what it can do. */
+function ciClassBtn(ki, ci, c){
+  const on = !!c.attId;
+  return '<button onclick="curToggleCheckin('+ki+','+ci+')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;padding:10px 12px;margin-bottom:6px;border-radius:8px;cursor:pointer;font-size:.78rem;'
+    + (on ? 'background:#e6f6ec;border:1.5px solid #2ecc71;color:#1e9e54;font-weight:700;'
+          : 'background:#fafafa;border:1.5px solid #ddd;color:#333;')
+    + '"><span>'+c.label.replace(/\s{2,}/g,' · ')+'</span><span style="white-space:nowrap;">'+(on?'✓ In · undo':'Check in')+'</span></button>';
+}
+
+function ciToggleMore(ki){
+  const box = document.getElementById('cimore-'+ki), btn = document.getElementById('cimore-btn-'+ki);
+  if(!box) return;
+  const open = box.style.display !== 'none';
+  box.style.display = open ? 'none' : '';
+  if(btn) btn.textContent = open ? btn.textContent.replace('Hide', 'View') : btn.textContent.replace('View', 'Hide');
 }
 
 async function curToggleCheckin(ki, ci){
