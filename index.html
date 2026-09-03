@@ -35,8 +35,9 @@
     border-bottom: 3px solid var(--gold);
     min-height: 64px;
   }
-  .logo { font-family: 'Archivo Black', sans-serif; font-size: 1.8rem; letter-spacing: 3px; color: var(--white); line-height: 1; }
-  .logo span { color: var(--gold); }
+  /* The wordmark is transparent with BLACK lettering, so on this black
+     header it needs its own light ground or half of it disappears. */
+  .logo-img { height: 26px; width: auto; display: block; background: #fff; padding: 5px 9px; border-radius: 5px; }
   .header-sub { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 2px; }
 
   /* SEARCH */
@@ -275,7 +276,7 @@
 
 <header>
   <div>
-    <div class="logo">Bares<span>TKD</span></div>
+    <img class="logo-img" src="logo-headline.png" alt="Bares Taekwondo Fitness">
     <div class="header-sub">Student Curriculum</div>
   </div>
   <div style="display:flex;align-items:center;gap:8px;">
