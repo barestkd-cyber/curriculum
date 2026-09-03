@@ -3355,13 +3355,42 @@ async function renderProfileBelts(){
     }
     if(slot) slot.innerHTML = h;
   });
+  // Belts change a page's height, so remeasure once they are in.
+  requestAnimationFrame(syncPagerHeight);
 }
 /* The code opens over the profile on its own screen, which is how it gets
    used - held up to be scanned - and keeps it from shoving the belt and
    the check-in list around underneath it. */
 function profileToggleQr(){
   const m = document.getElementById('qrModal'); if(!m) return;
+  const k = profileCurrentKid();
+  if(!k){ alert('No check-in code for this account yet.'); return; }
+  profileSetQr(k.id);
+  const w = document.getElementById('qrWho');
+  if(w) w.textContent = k.name || 'Student';
   m.style.display = 'flex';
+}
+
+/* The student whose page is on screen. Everything the code screen and the
+   print button do is scoped to this one person. */
+function profileCurrentKid(){ return (CI_CACHE.kids || [])[profileCurrentPage()] || null; }
+
+function profileCurrentPage(){
+  const pager = document.getElementById('profilePager');
+  if(!pager) return 0;
+  const n = (CI_CACHE.kids || []).length;
+  const w = pager.clientWidth || 1;
+  return Math.max(0, Math.min(n - 1, Math.round(pager.scrollLeft / w)));
+}
+
+/* A flex row is as tall as its tallest child, which left a short belt
+   sitting above a gap sized for a longer one. Pin the pager to the height
+   of the page actually on screen. */
+function syncPagerHeight(){
+  const pager = document.getElementById('profilePager');
+  if(!pager || !pager.children.length) return;
+  const page = pager.children[profileCurrentPage()];
+  if(page) pager.style.height = page.offsetHeight + 'px';
 }
 function closeQrModal(){
   const m = document.getElementById('qrModal'); if(m) m.style.display = 'none';
@@ -3386,8 +3415,8 @@ function renderProfileDots(){
   };
   draw(0);
   pager.onscroll = function(){
-    const w = pager.clientWidth || 1;
-    draw(Math.max(0, Math.min(n - 1, Math.round(pager.scrollLeft / w))));
+    draw(profileCurrentPage());
+    syncPagerHeight();
   };
 }
 
@@ -3407,7 +3436,8 @@ function renderQrWho(){
   // Parents only get a "Me" chip when they're a student themselves (their
   // account resolves to its own contacts row). Codes identify students, and
   // every scan is one person — there is no whole-family code.
-  who.innerHTML = kids.map(function(k){ return chip(k.id, (k.name||'Student').split(' ')[0]); }).join('')
+  who.innerHTML = '';   // the switcher is gone; see the code screen comment
+  const _unusedChips = kids.map(function(k){ return chip(k.id, (k.name||'Student').split(' ')[0]); }).join('')
     // ...plus a "Me" chip, unless the account holder is already listed as one
     // of their own students. Two chips for one person meant tapping the second
     // one visibly did nothing (found 2026-09-02).
@@ -3428,8 +3458,12 @@ function renderQrWho(){
 function printQrCodes(){
   const area = document.getElementById('qrPrintArea');
   if(!area) return;
-  const people = (CI_CACHE.allKids||[]).map(function(k){ return { code: k.id, name: k.name||'Student' }; });
-  if(PROFILE_MY_IS_STUDENT) people.push({ code: PROFILE_MY_CODE, name: (currentUser && currentUser.email) || 'Me' });
+  // The student on screen, and only them. Printing the whole family from a
+  // button sitting on one child's page was the same confusion as the code
+  // switcher (owner, 2026-09-03).
+  const k = profileCurrentKid();
+  const people = k ? [{ code: k.id, name: k.name || 'Student' }]
+    : (PROFILE_MY_IS_STUDENT ? [{ code: PROFILE_MY_CODE, name: (currentUser && currentUser.email) || 'Me' }] : []);
   if(!people.length) return;
   area.innerHTML = people.map(function(p){
     const q = new QRious({ value: String(p.code), size: 420, level: 'M' });
@@ -3612,6 +3646,8 @@ async function loadProfileKids(){
     const noteEl = document.getElementById('profileNote');
     if(noteEl && DOJO_LOC.lat != null) noteEl.style.display = '';
     renderProfileDots();
+    // Fonts and images settle after this frame; measure on the next one.
+    requestAnimationFrame(syncPagerHeight);
   }catch(e){ console.error('loadProfileKids', e); }
 }
 
@@ -3703,10 +3739,12 @@ renderCards();
   <div style="background:#fff;border-radius:14px;padding:26px 24px;max-width:340px;width:90%;text-align:center;position:relative;">
     <div style="font-family:'Archivo Black',sans-serif;letter-spacing:2px;font-size:1.1rem;color:#111;margin-bottom:4px;">Check-In Code</div>
     <div style="font-size:.68rem;color:#999;margin-bottom:14px;">Show this at the front desk to scan in.</div>
-    <div id="profileQrWho" style="display:none;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:10px;"></div>
+    <!-- No student switcher here on purpose: being able to flip students
+         from inside the code screen is how the wrong child gets scanned
+         in (owner, 2026-09-03). The code shown is the page you opened. -->
+    <div id="qrWho" style="font-weight:700;font-size:.9rem;color:#111;margin-bottom:10px;"></div>
     <canvas id="profileQrCanvas" style="width:220px;height:220px;"></canvas>
     <div id="profileCodeLabel" style="font-size:.62rem;color:#bbb;margin:8px 0 14px;word-break:break-all;"></div>
-    <button onclick="printQrCodes()" style="background:none;border:none;color:#EA0000;font-size:.72rem;font-weight:600;cursor:pointer;text-decoration:underline;margin-bottom:14px;">🖨 Print check-in code</button>
     <button onclick="closeQrModal()" style="width:100%;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Back</button>
     <button onclick="closeQrModal()" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:1.2rem;cursor:pointer;color:#888;">✕</button>
   </div>
@@ -3716,11 +3754,12 @@ renderCards();
   <div style="background:#fff;border-radius:14px;padding:26px 24px;max-width:340px;width:90%;text-align:center;position:relative;max-height:88vh;overflow-y:auto;">
     <!-- One student per page. The name lives on the page, so it changes
          as you swipe; no heading is needed above it. -->
-    <div id="profilePager" style="display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:14px;"></div>
+    <div id="profilePager" style="display:flex;align-items:flex-start;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:14px;transition:height .18s ease;"></div>
     <div id="profileDots" style="display:none;justify-content:center;gap:6px;margin:10px 0 4px;"></div>
     <!-- Then the code, behind a tap. Most visits never need it. -->
     <div id="profileCodeBtns" style="display:none;gap:16px;justify-content:center;margin-bottom:10px;">
       <button id="profileQrBtn" onclick="profileToggleQr()" style="background:none;border:none;color:#EA0000;font-size:.72rem;font-weight:600;cursor:pointer;text-decoration:underline;">View check-in code</button>
+      <button id="profilePrintBtn" onclick="printQrCodes()" style="background:none;border:none;color:#EA0000;font-size:.72rem;font-weight:600;cursor:pointer;text-decoration:underline;">🖨 Print code</button>
     </div>
     <!-- Sits between the code button and Sign Out, which keeps those two
          apart (owner, 2026-09-03). -->
