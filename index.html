@@ -3431,6 +3431,7 @@ function renderProfileDots(){
   pager.onscroll = function(){
     draw(profileCurrentPage());
     syncPagerHeight();
+    renderCertBtn();
   };
 }
 
@@ -3438,6 +3439,52 @@ function renderProfileDots(){
    gone with the switcher; all that is left is showing or hiding the two
    buttons. It used to open with `if(!who) return;` against the deleted
    element, which meant the buttons never appeared either. */
+/* Which of these students tested recently, and on what day. Only they get
+   a certificate button - "just for those who tested this time" (owner,
+   2026-09-03). 45 days covers a testing cycle with room either side. */
+async function loadRecentTesting(ids){
+  try{
+    const since = new Date(Date.now() - 45*864e5).toLocaleDateString('en-CA');
+    const r = await sb.from('testing_signups')
+      .select('contact_id,testing_dates:testing_date_id(test_date)')
+      .in('contact_id', ids);
+    if(r.error) return;
+    const on = {};
+    (r.data||[]).forEach(function(x){
+      const d = x.testing_dates && x.testing_dates.test_date;
+      if(!d || String(d) < since) return;
+      if(!on[x.contact_id] || String(d) > on[x.contact_id]) on[x.contact_id] = String(d);
+    });
+    (CI_CACHE.kids||[]).forEach(function(k){ k.testedOn = on[k.id] || null; });
+    (CI_CACHE.allKids||[]).forEach(function(k){ k.testedOn = on[k.id] || null; });
+    renderCertBtn();
+  }catch(e){ console.error('recent testing', e); }
+}
+
+/* 'September 3, 2026' - split by hand so a UTC parse cannot shift the day. */
+function certPrettyDate(ymd){
+  const M=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const p=String(ymd||'').split('-').map(Number);
+  if(p.length!==3||!p[0]) return String(ymd||'');
+  return M[p[1]-1]+' '+p[2]+', '+p[0];
+}
+
+/* The button belongs to whoever's page is showing, like View and Print. */
+function renderCertBtn(){
+  const b = document.getElementById('profileCertBtn'); if(!b) return;
+  const k = profileCurrentKid();
+  b.style.display = (k && k.testedOn) ? '' : 'none';
+}
+
+function printCertificate(){
+  const k = profileCurrentKid();
+  if(!k || !k.testedOn) return;
+  const q = 'name=' + encodeURIComponent(k.name||'')
+    + '&rank=' + encodeURIComponent(k.rank||'')
+    + '&date=' + encodeURIComponent(certPrettyDate(k.testedOn));
+  window.open('https://barestkd-cyber.github.io/cert-tool/?' + q, '_blank');
+}
+
 function renderQrWho(){
   const kids = CI_CACHE.allKids || [];
   const cb = document.getElementById('profileCodeBtns');
@@ -3564,6 +3611,7 @@ async function loadProfileKids(){
     ]);
     const kids = ks.data||[], enr = en.data||[], att = at.data||[];
     CI_CACHE.allKids = kids.map(function(k){ return { id: k.id, name: k.name||'Student', rank: k.rank||'' }; });
+    loadRecentTesting(ids);
     renderQrWho(); // QR chips show every linked student, classes today or not
     // A failed schedule read must NOT masquerade as "not enrolled".
     if(sch.error){
@@ -3754,6 +3802,7 @@ renderCards();
     <div id="profileCodeBtns" style="display:none;gap:16px;justify-content:center;margin-bottom:10px;">
       <button id="profileQrBtn" onclick="profileToggleQr()" style="background:none;border:none;color:#EA0000;font-size:.72rem;font-weight:600;cursor:pointer;text-decoration:underline;">View check-in code</button>
       <button id="profilePrintBtn" onclick="printQrCodes()" style="background:none;border:none;color:#EA0000;font-size:.72rem;font-weight:600;cursor:pointer;text-decoration:underline;">🖨 Print code</button>
+      <button id="profileCertBtn" onclick="printCertificate()" style="display:none;background:none;border:none;color:#EA0000;font-size:.72rem;font-weight:600;cursor:pointer;text-decoration:underline;">🏅 Certificate</button>
     </div>
     <!-- Sits between the code button and Sign Out, which keeps those two
          apart (owner, 2026-09-03). -->
