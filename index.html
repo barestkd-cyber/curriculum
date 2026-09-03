@@ -3187,7 +3187,6 @@ async function openProfile(){
     if(own?.id){ codeVal = own.id; PROFILE_MY_IS_STUDENT = true; }
   } catch(e){}
   PROFILE_MY_CODE = String(codeVal);
-  document.getElementById('profileQrWho').style.display = 'none';
   profileSetQr(PROFILE_MY_CODE);
   // Every visit starts with the code screen shut.
   closeQrModal();
@@ -3195,19 +3194,13 @@ async function openProfile(){
   loadProfileKids(); // parent check-in section + per-student QR chips, fills in async
 }
 
-// Redraws the QR for the given contact id and reveals the canvas. With linked
-// students the chips let a parent switch between each kid's code and their own.
+/* Draws ONE person's code. There is no switcher any more: the code screen
+   shows whoever's page you opened it from, deliberately, so nobody scans
+   the wrong child in (owner, 2026-09-03). */
 function profileSetQr(val){
   new QRious({ element: document.getElementById('profileQrCanvas'), value: String(val), size: 220, level: 'M' });
   document.getElementById('profileQrCanvas').style.display = '';
   document.getElementById('profileCodeLabel').textContent = val;
-  const who = document.getElementById('profileQrWho');
-  Array.prototype.forEach.call(who.children, function(b){
-    if(!b.dataset || !b.dataset.code) return;
-    const on = b.dataset.code === String(val);
-    b.style.background = on ? '#111' : '#f2f2f2';
-    b.style.color = on ? '#fff' : '#555';
-  });
 }
 
 /* Each student's current belt with its stripes filled in. Read-only for
@@ -3421,39 +3414,15 @@ function renderProfileDots(){
   };
 }
 
+/* Whether there is a code to show at all. The chips this used to draw are
+   gone with the switcher; all that is left is showing or hiding the two
+   buttons. It used to open with `if(!who) return;` against the deleted
+   element, which meant the buttons never appeared either. */
 function renderQrWho(){
-  const who = document.getElementById('profileQrWho');
-  if(!who) return;
   const kids = CI_CACHE.allKids || [];
-  // Print button only when there is at least one real code to print.
-  // Both code buttons live or die together: with no code to show there is
-  // nothing to view and nothing to print.
   const cb = document.getElementById('profileCodeBtns');
   if(cb) cb.style.display = (kids.length || PROFILE_MY_IS_STUDENT) ? 'flex' : 'none';
-  if(!kids.length){ who.style.display = 'none'; return; }
-  const chip = function(code, label){
-    return '<button data-code="'+code+'" onclick="profileSetQr(this.dataset.code)" style="border:none;border-radius:999px;padding:6px 12px;font-size:.72rem;font-weight:600;cursor:pointer;background:#f2f2f2;color:#555;">'+label+'</button>';
-  };
-  // Parents only get a "Me" chip when they're a student themselves (their
-  // account resolves to its own contacts row). Codes identify students, and
-  // every scan is one person — there is no whole-family code.
-  who.innerHTML = '';   // the switcher is gone; see the code screen comment
-  const _unusedChips = kids.map(function(k){ return chip(k.id, (k.name||'Student').split(' ')[0]); }).join('')
-    // ...plus a "Me" chip, unless the account holder is already listed as one
-    // of their own students. Two chips for one person meant tapping the second
-    // one visibly did nothing (found 2026-09-02).
-    + ((PROFILE_MY_IS_STUDENT && !kids.some(function(k){ return String(k.id) === String(PROFILE_MY_CODE); }))
-        ? chip(PROFILE_MY_CODE, 'Me') : '');
-  who.style.display = 'flex';
-  if(kids.length === 1){
-    profileSetQr(kids[0].id);          // one student: show their code right away
-  } else {
-    // Several people on the account: no code until a name is tapped.
-    document.getElementById('profileQrCanvas').style.display = 'none';
-    document.getElementById('profileCodeLabel').textContent = 'Tap a name to show their code';
-  }
 }
-
 // Prints every code on the account (kids + account holder) as laminate-ready
 // cards: hides the app, prints #qrPrintArea, restores.
 function printQrCodes(){
