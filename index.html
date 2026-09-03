@@ -3027,7 +3027,7 @@ async function loadUserProfile(){
     // of profiles.name, so an account named "Test B" greeted its owner as
     // "Test" and every account depended on a tidy name being entered
     // somewhere (owner, 2026-09-02).
-    btn.textContent = 'Student Profile';
+    btn.textContent = 'Profile';
     btn.onclick = openProfile;
   }
   // Admin lock button only exists for staff; students never see it.
@@ -3140,6 +3140,58 @@ function profileSetQr(val){
     b.style.background = on ? '#111' : '#f2f2f2';
     b.style.color = on ? '#fff' : '#555';
   });
+}
+
+/* Each student's current belt with its stripes filled in. Read-only for
+   now: the family-logging half of the parked design needs an instructor
+   Verify button in class plan and the CRM before a family log means
+   anything, so amber renders but nothing here writes.
+   Stripe keys come from the shared catalog's getStripeId(), the same
+   function every other app keys on. */
+async function renderProfileBelts(){
+  const box = document.getElementById('profileBelts'); if(!box) return;
+  const kids = CI_CACHE.allKids || [];
+  if(!kids.length){ box.style.display = 'none'; return; }
+  box.style.display = '';
+
+  let earned = {};
+  try{
+    const r = await sb.from('student_stripes').select('student_id,stripe_key,source')
+      .in('student_id', kids.map(function(k){ return k.id; }));
+    if(!r.error) (r.data||[]).forEach(function(x){
+      (earned[x.student_id] = earned[x.student_id] || {})[x.stripe_key] = x.source || 'staff'; });
+  }catch(e){ console.error('stripes load', e); }
+
+  const belts = window.BELTS || [];
+  let h = '<div style="font-size:.7rem;letter-spacing:1px;text-transform:uppercase;color:#999;margin-bottom:8px;text-align:center;">Belt Progress</div>';
+  kids.forEach(function(k){
+    const belt = belts.find(function(b){ return String(b.name||'').toLowerCase() === String(k.rank||'').toLowerCase(); });
+    h += '<div style="font-weight:700;font-size:.85rem;color:#111;margin:8px 0 2px;">'+k.name+'</div>';
+    if(!belt){
+      h += '<div style="font-size:.72rem;color:#aaa;padding:0 0 6px;">'+(k.rank ? k.rank+' — no stripe chart for this rank yet.' : 'No rank on file yet — ask at the front desk.')+'</div>';
+      return;
+    }
+    const st = belt.stripes || {};
+    const all = (st.black||[]).map(function(x){ return { s:x, col:'#222' }; })
+      .concat((st.colored||[]).map(function(x){ return { s:x, col:x.color||'#666' }; }));
+    const mine = earned[k.id] || {};
+    let got = 0;
+    let bars = '';
+    all.forEach(function(e){
+      const key = window.getStripeId ? window.getStripeId(e.s, belt.name) : e.s.id;
+      const src = mine[key];
+      if(src) got++;
+      const pending = src === 'family';
+      bars += '<span title="'+String(e.s.label||'').replace(/"/g,'')+(pending?' (waiting on instructor)':'')+'" style="flex:1;height:14px;border-radius:3px;'
+        + (src ? ('background:'+e.col+';'+(pending?'outline:2px solid #F3B700;outline-offset:-2px;':''))
+               : 'background:#ececec;')
+        + '"></span>';
+    });
+    h += '<div style="font-size:.72rem;color:#666;margin-bottom:4px;">'+belt.name+'</div>';
+    h += '<div style="display:flex;gap:3px;margin-bottom:4px;">'+bars+'</div>';
+    h += '<div style="font-size:.68rem;color:#999;padding-bottom:4px;">'+got+' of '+all.length+' stripes</div>';
+  });
+  box.innerHTML = h;
 }
 
 function renderQrWho(){
@@ -3288,8 +3340,9 @@ async function loadProfileKids(){
       sb.from('attendance').select('id,student_id,class_label').in('student_id', ids).eq('class_date', ciYMD())
     ]);
     const kids = ks.data||[], enr = en.data||[], att = at.data||[];
-    CI_CACHE.allKids = kids.map(function(k){ return { id: k.id, name: k.name||'Student' }; });
+    CI_CACHE.allKids = kids.map(function(k){ return { id: k.id, name: k.name||'Student', rank: k.rank||'' }; });
     renderQrWho(); // QR chips show every linked student, classes today or not
+    renderProfileBelts();
     // A failed schedule read must NOT masquerade as "not enrolled".
     if(sch.error){
       console.error('schedule_template load:', sch.error);
@@ -3438,6 +3491,7 @@ renderCards();
   <div style="background:#fff;border-radius:14px;padding:26px 24px;max-width:340px;width:90%;text-align:center;position:relative;max-height:88vh;overflow-y:auto;">
     <div style="font-family:'Archivo Black',sans-serif;letter-spacing:2px;font-size:1.4rem;color:#111;">Profile</div>
     <div id="profileEmail" style="font-size:.75rem;color:#888;margin-bottom:18px;"></div>
+    <div id="profileBelts" style="text-align:left;margin-bottom:18px;"></div>
     <div style="font-size:.7rem;letter-spacing:1px;text-transform:uppercase;color:#999;margin-bottom:8px;">My Check-In Code</div>
     <div id="profileQrWho" style="display:none;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:8px;"></div>
     <canvas id="profileQrCanvas" style="width:220px;height:220px;"></canvas>
