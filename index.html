@@ -3021,10 +3021,13 @@ document.addEventListener('keydown', e => {
 async function loadUserProfile(){
   const { data: profile } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
   currentRole = profile?.role || 'student';
-  const name = profile?.name || currentUser.email.split('@')[0];
   const btn = document.getElementById('authBtn');
   if(btn){
-    btn.textContent = name.split(' ')[0];
+    // Names the destination, not the person. It used to print the first word
+    // of profiles.name, so an account named "Test B" greeted its owner as
+    // "Test" and every account depended on a tidy name being entered
+    // somewhere (owner, 2026-09-02).
+    btn.textContent = 'Student Profile';
     btn.onclick = openProfile;
   }
   // Admin lock button only exists for staff; students never see it.
@@ -3218,6 +3221,25 @@ function ciBeltOk(beltRange, rank){
   const R = CI_RANGE[beltRange]; if(!R) return true;
   const t = ciTier(rank); return t < 0 || (t >= R[0] && t <= R[1]);
 }
+/* Class times are stored as bare text ('9:30', '4:15') with no meridiem.
+   Every time in the live schedule is at hour 9-11 (morning) or 4-7
+   (afternoon), so hours 8-11 read AM and everything else PM - which also
+   gives the right answer if a noon or 1:00 class is ever added. These are
+   DISPLAY and SORT helpers only: the stored time is the attendance key and
+   is never rewritten. */
+function ciHour24(t){
+  const p = String(t||'').split(':'); const h = parseInt(p[0],10);
+  if(isNaN(h)) return null;
+  return (h >= 8 && h <= 11) ? h : (h % 12) + 12;
+}
+function ciMins(t){
+  const h = ciHour24(t); if(h === null) return 9999;
+  const p = String(t||'').split(':'); return h*60 + (parseInt(p[1],10)||0);
+}
+function ci12h(t){
+  const h = ciHour24(t); if(h === null) return String(t||'');
+  return String(t) + (h < 12 ? ' AM' : ' PM');
+}
 const CHECKIN_GATE = {'prog-cubs':'Cubs','prog-juniors':'Juniors','prog-teen':'Teens/Adults','prog-forms':['Juniors','Teens/Adults'],'prog-sparring':['Juniors','Teens/Adults'],'prog-kick':'Kickboxing','prog-ampd':"AMP'D",'prog-leader':'Leadership'};
 // 1901 Deerbrook Dr, Tyler TX 75703 (Paluxy Plaza). Location is a FENCE for
 // the app path (per Mr. Bares): outside the radius, denied, or unavailable
@@ -3277,7 +3299,13 @@ async function loadProfileKids(){
     const order = ['MON','TUE','WED','THU','FRI','SAT'];
     // Same label the CRM roster + kiosk key on — do not reformat.
     const labelOf = function(r){ return (r.label||'Class')+(r.belt?(' · '+r.belt):'')+(r.time?('  '+order[r.day]+' '+r.time):''); };
-    const todays = (sch.data||[]).filter(function(r){ return r.day===dayIdx; });
+    // Same shape, but the time carries AM/PM. Display only - labelOf above
+    // stays the attendance key and must never gain characters.
+    const dispOf = function(r){ return (r.label||'Class')+(r.belt?(' · '+r.belt):'')+(r.time?('  '+order[r.day]+' '+ci12h(r.time)):''); };
+    // Morning classes sorted ahead of afternoon ones: raw text put 10:15 AM
+    // after 4:45 PM, which read as though the morning class came last.
+    const todays = (sch.data||[]).filter(function(r){ return r.day===dayIdx; })
+      .sort(function(a,b){ return ciMins(a.time) - ciMins(b.time); });
 
     CI_CACHE.kids = kids.map(function(k){
       const progs = enr.filter(function(e){ return e.student_id===k.id; }).map(function(e){ return e.program; });
@@ -3292,7 +3320,7 @@ async function loadProfileKids(){
         const list = Array.isArray(g)?g:[g];
         const inProg = list.some(function(p){ return progs.indexOf(p)!==-1; });
         const hit = att.find(function(a){ return a.student_id===k.id && a.class_label===lbl; });
-        return { label: lbl, gate: Array.isArray(g)?g[0]:g, attId: hit?hit.id:null,
+        return { label: lbl, disp: dispOf(r), gate: Array.isArray(g)?g[0]:g, attId: hit?hit.id:null,
                  rostered: inProg && ciBeltOk(r.belt, k.rank) };
       });
       return { id: k.id, name: k.name||'Student', classes: classes };
@@ -3332,7 +3360,7 @@ function ciClassBtn(ki, ci, c){
   return '<button onclick="curToggleCheckin('+ki+','+ci+')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;padding:10px 12px;margin-bottom:6px;border-radius:8px;cursor:pointer;font-size:.78rem;'
     + (on ? 'background:#e6f6ec;border:1.5px solid #2ecc71;color:#1e9e54;font-weight:700;'
           : 'background:#fafafa;border:1.5px solid #ddd;color:#333;')
-    + '"><span>'+c.label.replace(/\s{2,}/g,' · ')+'</span><span style="white-space:nowrap;">'+(on?'✓ In · undo':'Check in')+'</span></button>';
+    + '"><span>'+(c.disp||c.label).replace(/\s{2,}/g,' · ')+'</span><span style="white-space:nowrap;">'+(on?'✓ In · undo':'Check in')+'</span></button>';
 }
 
 function ciToggleMore(ki){
