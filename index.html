@@ -3205,6 +3205,40 @@ function profileSetQr(val){
    anything, so amber renders but nothing here writes.
    Stripe keys come from the shared catalog's getStripeId(), the same
    function every other app keys on. */
+// Every stripe row currently on screen, so a tap can find its student,
+// belt and stripe key without escaping any of them into HTML.
+let CI_STRIPE_ROWS = [];
+
+/* A family logs a stripe, or takes back one it logged. Staff and verified
+   stripes are read-only here: RLS would allow the delete (that policy is
+   deliberately open) so the scope is enforced in the statement itself with
+   .eq('source','family') - a parent can never remove an instructor's row,
+   even by accident. */
+async function curToggleStripe(ri){
+  const row = CI_STRIPE_ROWS[ri]; if(!row) return;
+  if(row.source && row.source !== 'family'){
+    alert('An instructor logged this one, so it stays. Ask at the desk if it looks wrong.');
+    return;
+  }
+  if(row.source === 'family'){
+    const r = await sb.from('student_stripes').delete()
+      .eq('student_id', row.studentId).eq('belt', row.belt)
+      .eq('stripe_key', row.key).eq('source', 'family').select('id');
+    if(r.error){ alert('Could not remove that: '+r.error.message); return; }
+    if(!r.data || !r.data.length){ alert('Could not remove that one — ask at the front desk.'); return; }
+  } else {
+    const r = await sb.from('student_stripes').insert({
+      id: crypto.randomUUID(), student_id: row.studentId, belt: row.belt,
+      stripe_key: row.key, earned_at: new Date().toISOString(),
+      awarded_by: (currentUser && currentUser.email) || 'family', source: 'family' });
+    if(r.error){
+      alert(String(r.error.code)==='23505' ? 'Already logged.' : 'Could not log that: '+r.error.message);
+      if(String(r.error.code)!=='23505') return;
+    }
+  }
+  renderProfileBelts();
+}
+
 async function renderProfileBelts(){
   const box = document.getElementById('profileBelts'); if(!box) return;
   const kids = CI_CACHE.allKids || [];
@@ -3220,7 +3254,8 @@ async function renderProfileBelts(){
   }catch(e){ console.error('stripes load', e); }
 
   const belts = window.BELTS || [];
-  let h = '';
+  CI_STRIPE_ROWS = [];
+  let h = '<div style="font-size:.66rem;color:#aaa;margin-bottom:2px;">Tap a stripe to log it. Your instructor confirms it in class.</div>';
   kids.forEach(function(k){
     const belt = belts.find(function(b){ return String(b.name||'').toLowerCase() === String(k.rank||'').toLowerCase(); });
     if(!belt){
@@ -3245,10 +3280,18 @@ async function renderProfileBelts(){
       all.forEach(function(x){
         const key = window.getStripeId ? window.getStripeId(x, belt.name) : x.id;
         const src = mine[key];
+        // Index into CI_STRIPE_ROWS, so no id or belt name has to survive
+        // being quoted into an onclick attribute.
+        const ri = CI_STRIPE_ROWS.length;
+        CI_STRIPE_ROWS.push({ studentId: k.id, belt: belt.name, key: key, source: src || null });
+        const locked = src && src !== 'family';   // staff or verified: not ours to remove
         const tick = src === 'family' ? '<span style="color:#B88A00">◐</span>'
                    : src ? '<span style="color:#2ecc71">✓</span>'
                    : '<span style="color:#ddd">○</span>';
-        h += '<div style="font-size:.72rem;color:'+(src?'#333':'#999')+';padding:2px 0;">'+tick+' '+String(x.label||'')+'</div>';
+        const note = src === 'family' ? ' <span style="color:#B88A00;font-size:.64rem;">· waiting on instructor</span>' : '';
+        h += '<div onclick="curToggleStripe('+ri+')" style="font-size:.72rem;color:'+(src?'#333':'#999')+';padding:4px 2px;border-radius:5px;'
+          + (locked ? 'cursor:default;' : 'cursor:pointer;')
+          + '">'+tick+' '+String(x.label||'')+note+'</div>';
       });
       h += '</div>';
     }
