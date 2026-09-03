@@ -485,8 +485,9 @@ function beltBarHtml(belt, idPrefix, marks){
     const src = marks[key];
     const base = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:13px;height:13px;border-radius:50%;'
       + 'display:flex;align-items:center;justify-content:center;font-size:.5rem;font-weight:700;pointer-events:none;';
-    if(src === 'family') return '<div style="'+base+'background:#fff;color:#B88A00;border:1.5px solid #B88A00;">◐</div>';
-    if(src) return '<div style="'+base+'background:#fff;color:#2ecc71;border:1.5px solid #2ecc71;">✓</div>';
+    const kind = src && src.source ? src.source : src;
+    if(kind === 'family') return '<div style="'+base+'background:#fff;color:#B88A00;border:1.5px solid #B88A00;">◐</div>';
+    if(kind) return '<div style="'+base+'background:#fff;color:#2ecc71;border:1.5px solid #2ecc71;">✓</div>';
     return '<div style="'+base+'background:transparent;border:1.5px solid rgba(255,255,255,0.55);"></div>';
   };
   const stripeDiv = function(bg, st){
@@ -3208,6 +3209,12 @@ function profileSetQr(val){
 // Every stripe row currently on screen, so a tap can find its student,
 // belt and stripe key without escaping any of them into HTML.
 let CI_STRIPE_ROWS = [];
+// Which row has its instructor picker open, if any.
+let CI_STRIPE_OPEN = null;
+// Who can award a stripe (owner, 2026-09-03). Hardcoded on purpose for
+// now - it is a short, stable list, and a settings table for five names
+// would be more machinery than the problem deserves.
+const CI_INSTRUCTORS = ['Mr. Race Bares','Mr. Matt Bares','Mr. Wilson','Mr. Du Toit','Mr. Smith'];
 
 /* A family logs a stripe, or takes back one it logged. Staff and verified
    stripes are read-only here: RLS would allow the delete (that policy is
@@ -3226,16 +3233,33 @@ async function curToggleStripe(ri){
       .eq('stripe_key', row.key).eq('source', 'family').select('id');
     if(r.error){ alert('Could not remove that: '+r.error.message); return; }
     if(!r.data || !r.data.length){ alert('Could not remove that one — ask at the front desk.'); return; }
-  } else {
-    const r = await sb.from('student_stripes').insert({
-      id: crypto.randomUUID(), student_id: row.studentId, belt: row.belt,
-      stripe_key: row.key, earned_at: new Date().toISOString(),
-      awarded_by: (currentUser && currentUser.email) || 'family', source: 'family' });
-    if(r.error){
-      alert(String(r.error.code)==='23505' ? 'Already logged.' : 'Could not log that: '+r.error.message);
-      if(String(r.error.code)!=='23505') return;
-    }
+    CI_STRIPE_OPEN = null;
+    renderProfileBelts();
+    return;
   }
+  // Nothing is written by a tap. Open the picker; the Submit writes.
+  CI_STRIPE_OPEN = (CI_STRIPE_OPEN === ri) ? null : ri;
+  renderProfileBelts();
+}
+
+function curCancelStripe(){ CI_STRIPE_OPEN = null; renderProfileBelts(); }
+
+/* Submit: the stripe plus the instructor who gave it. awarded_by is the
+   named instructor - who typed it is deliberately not recorded. */
+async function curSubmitStripe(ri){
+  const row = CI_STRIPE_ROWS[ri]; if(!row) return;
+  const sel = document.getElementById('cistrsel-'+ri);
+  const who = sel && sel.value;
+  if(!who){ alert('Pick the instructor who gave this stripe.'); return; }
+  const r = await sb.from('student_stripes').insert({
+    id: crypto.randomUUID(), student_id: row.studentId, belt: row.belt,
+    stripe_key: row.key, earned_at: new Date().toISOString(),
+    awarded_by: who, source: 'family', origin: 'profile' });
+  if(r.error){
+    alert(String(r.error.code)==='23505' ? 'Already logged.' : 'Could not log that: '+r.error.message);
+    if(String(r.error.code)!=='23505') return;
+  }
+  CI_STRIPE_OPEN = null;
   renderProfileBelts();
 }
 
@@ -3247,15 +3271,16 @@ async function renderProfileBelts(){
 
   let earned = {};
   try{
-    const r = await sb.from('student_stripes').select('student_id,stripe_key,source')
+    const r = await sb.from('student_stripes').select('student_id,stripe_key,source,awarded_by,origin')
       .in('student_id', kids.map(function(k){ return k.id; }));
     if(!r.error) (r.data||[]).forEach(function(x){
-      (earned[x.student_id] = earned[x.student_id] || {})[x.stripe_key] = x.source || 'staff'; });
+      (earned[x.student_id] = earned[x.student_id] || {})[x.stripe_key] =
+        { source: x.source || 'staff', by: x.awarded_by || '', origin: x.origin || '' }; });
   }catch(e){ console.error('stripes load', e); }
 
   const belts = window.BELTS || [];
   CI_STRIPE_ROWS = [];
-  let h = '<div style="font-size:.66rem;color:#aaa;margin-bottom:2px;">Tap a stripe to log it. Your instructor confirms it in class.</div>';
+  let h = '<div style="font-size:.66rem;color:#aaa;margin-bottom:2px;">Tap a stripe, say who gave it, and submit. Your instructor confirms it in class.</div>';
   kids.forEach(function(k){
     const belt = belts.find(function(b){ return String(b.name||'').toLowerCase() === String(k.rank||'').toLowerCase(); });
     if(!belt){
@@ -3279,19 +3304,34 @@ async function renderProfileBelts(){
       h += '<div style="margin-top:6px;">';
       all.forEach(function(x){
         const key = window.getStripeId ? window.getStripeId(x, belt.name) : x.id;
-        const src = mine[key];
+        const rec = mine[key] || null;
+        const kind = rec ? rec.source : null;
         // Index into CI_STRIPE_ROWS, so no id or belt name has to survive
         // being quoted into an onclick attribute.
         const ri = CI_STRIPE_ROWS.length;
-        CI_STRIPE_ROWS.push({ studentId: k.id, belt: belt.name, key: key, source: src || null });
-        const locked = src && src !== 'family';   // staff or verified: not ours to remove
-        const tick = src === 'family' ? '<span style="color:#B88A00">◐</span>'
-                   : src ? '<span style="color:#2ecc71">✓</span>'
+        CI_STRIPE_ROWS.push({ studentId: k.id, belt: belt.name, key: key, source: kind });
+        const locked = kind && kind !== 'family';   // staff or verified: not ours
+        const tick = kind === 'family' ? '<span style="color:#B88A00">◐</span>'
+                   : kind ? '<span style="color:#2ecc71">✓</span>'
                    : '<span style="color:#ddd">○</span>';
-        const note = src === 'family' ? ' <span style="color:#B88A00;font-size:.64rem;">· waiting on instructor</span>' : '';
-        h += '<div onclick="curToggleStripe('+ri+')" style="font-size:.72rem;color:'+(src?'#333':'#999')+';padding:4px 2px;border-radius:5px;'
+        const by = rec && rec.by ? ' <span style="color:#999;font-size:.64rem;">· '+rec.by+'</span>' : '';
+        const note = kind === 'family' ? ' <span style="color:#B88A00;font-size:.64rem;">· waiting on instructor</span>' : '';
+        h += '<div onclick="curToggleStripe('+ri+')" style="font-size:.72rem;color:'+(kind?'#333':'#999')+';padding:4px 2px;border-radius:5px;'
           + (locked ? 'cursor:default;' : 'cursor:pointer;')
-          + '">'+tick+' '+String(x.label||'')+note+'</div>';
+          + '">'+tick+' '+String(x.label||'')+by+note+'</div>';
+        // The picker: which instructor gave it, then Submit. Only then amber.
+        if(CI_STRIPE_OPEN === ri && !kind){
+          h += '<div style="background:#faf8f2;border:1px solid #e8e0cc;border-radius:6px;padding:8px 10px;margin:2px 0 6px;">'
+            + '<div style="font-size:.68rem;color:#666;margin-bottom:5px;">Which instructor gave this stripe?</div>'
+            + '<select id="cistrsel-'+ri+'" style="width:100%;padding:7px;font-size:.75rem;border:1px solid #ddd;border-radius:5px;background:#fff;">'
+            + '<option value="">Choose an instructor…</option>'
+            + CI_INSTRUCTORS.map(function(n){ return '<option value="'+n+'">'+n+'</option>'; }).join('')
+            + '</select>'
+            + '<div style="display:flex;gap:6px;margin-top:7px;">'
+            + '<button onclick="event.stopPropagation();curSubmitStripe('+ri+')" style="flex:1;padding:8px;border:none;border-radius:5px;background:#B88A00;color:#fff;font-size:.74rem;font-weight:600;cursor:pointer;">Submit</button>'
+            + '<button onclick="event.stopPropagation();curCancelStripe()" style="padding:8px 12px;border:1px solid #ddd;border-radius:5px;background:#fff;color:#666;font-size:.74rem;cursor:pointer;">Cancel</button>'
+            + '</div></div>';
+        }
       });
       h += '</div>';
     }
