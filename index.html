@@ -993,12 +993,17 @@ function buildCard(belt, idx) {
       + '</div>';
 
 
+    // Content comes from the active cycle or the belt's form where there is
+    // a row for it, and from the catalogue otherwise (see belts.js).
+    const beltForm = (belt.forms && belt.forms[0] && belt.forms[0].name) || null;
+    const sc = function(st){ return window.stripeContent ? window.stripeContent(st, beltForm, CURRIC) : (st.details || []); };
+
     // Black stripe detail panels
     blackStripes.forEach((s, si) => {
       const sid = `stripe-b-${idx}-${si}`;
       bodyHtml += `<div class="stripe-detail-panel" id="${sid}">
         <div class="stripe-detail-title">${s.label}</div>
-        ${s.details.map(d => `
+        ${sc(s).map(d => `
           ${d.title ? `<div class="stripe-sub-label">${d.title}</div>` : ''}
           ${d.items.map(item => `<div class="stripe-item">${item}</div>`).join('')}
         `).join('')}
@@ -1008,11 +1013,13 @@ function buildCard(belt, idx) {
     // Colored stripe detail panels
     coloredStripes.forEach((s, si) => {
       const sid = `stripe-c-${idx}-${si}`;
-      const rotateNote = s.rotate ? `<div style="font-size:0.68rem;color:#aaa;font-style:italic;margin-bottom:6px;">🔄 ${s.label.includes('Kick') || s.label.includes('Breaking') ? 'Rotates with form (every rotation)' : 'Rotates every cycle'}</div>` : '';
+      // s.rot, not the old s.rotate, and not guessed from the label text.
+      const rotateNote = (s.rot === 'form' || s.rot === 'cycle')
+        ? `<div style="font-size:0.68rem;color:#aaa;font-style:italic;margin-bottom:6px;">🔄 ${s.rot === 'form' ? 'Rotates with the form' : 'Rotates every 10-week cycle'}</div>` : '';
       bodyHtml += `<div class="stripe-detail-panel" id="${sid}">
         <div class="stripe-detail-title" style="color:${s.color}">${s.label}</div>
         ${rotateNote}
-        ${s.details.map(d => `
+        ${sc(s).map(d => `
           ${d.title ? `<div class="stripe-sub-label">${d.title}</div>` : ''}
           ${d.items.map(item => `<div class="stripe-item">${item}</div>`).join('')}
         `).join('')}
@@ -3704,8 +3711,12 @@ async function loadCycleData() {
 // Init auth on load, THEN the session-dependent reads. Firing them before the
 // session exists (the old code did) made RLS return nothing and the hardcoded
 // fallbacks stick.
+let CURRIC = null;
 (async function(){
   await initAuth();
+  // Rotating content, then redraw so the cards show it. The search box is
+  // empty at startup, and the catalogue stands in if this never arrives.
+  try{ CURRIC = await window.loadCurriculum(sb); renderCards(activeFilter, ''); }catch(e){ console.error('curriculum load', e); }
   loadCycleData();
   loadEventsData();
   loadClosures();
