@@ -3195,8 +3195,10 @@ async function openProfile(){
   } catch(e){}
   PROFILE_MY_CODE = String(codeVal);
   profileSetQr(PROFILE_MY_CODE);
-  // Every visit starts with the code screen shut.
+  // Every visit starts with the code screen shut, and with no stale
+  // not-on-file message from a previous account.
   closeQrModal();
+  hideProfileNoMatch();
   document.getElementById('profileModal').style.display = 'flex';
   loadProfileKids(); // parent check-in section + per-student QR chips, fills in async
 }
@@ -3485,6 +3487,23 @@ function printCertificate(){
   window.open('https://barestkd-cyber.github.io/cert-tool/?' + q, '_blank');
 }
 
+/* No student matched this address. Tell them plainly, show them WHICH
+   address they used so a typo or a second inbox is obvious, and give them
+   the one thing that fixes it. */
+function showProfileNoMatch(){
+  const box = document.getElementById('profileNoMatch'); if(!box) return;
+  const email = (currentUser && currentUser.email) || 'this address';
+  box.innerHTML =
+    '<div style="font-family:\'Archivo Black\',sans-serif;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:#EA0000;margin-bottom:7px;">We don\'t have this email on file</div>'
+    + '<div style="font-size:.8rem;color:#333;line-height:1.5;">You\'re signed in as <b>' + escHtml(email) + '</b>, but that address isn\'t linked to a student yet, so there\'s nothing here to show.</div>'
+    + '<div style="font-size:.8rem;color:#333;line-height:1.5;margin-top:8px;">If you gave us a different address, sign out and use that one. Otherwise call <b>903-561-2966</b> or ask at the front desk and we\'ll add it. Takes a minute.</div>';
+  box.style.display = '';
+}
+function hideProfileNoMatch(){
+  const box = document.getElementById('profileNoMatch');
+  if(box) box.style.display = 'none';
+}
+
 function renderQrWho(){
   const kids = CI_CACHE.allKids || [];
   const cb = document.getElementById('profileCodeBtns');
@@ -3600,7 +3619,14 @@ async function loadProfileKids(){
       const g = await sb.from('student_guardians').select('student_id').ilike('email', (currentUser.email||''));
       if(!g.error) ids = (g.data||[]).map(function(x){ return x.student_id; });
     }
-    if(!ids.length) return; // not a guardian account — section stays hidden
+    if(!ids.length){
+      // Staff have no students of their own and that is normal, so they are
+      // not told anything is wrong.
+      const staff = (currentRole === 'admin' || currentRole === 'instructor');
+      if(!staff) showProfileNoMatch();
+      return;
+    }
+    hideProfileNoMatch();
 
     const dayIdx = (new Date().getDay()+6)%7; // 0=Mon … 6=Sun
     const [ks, en, sch, at] = await Promise.all([
@@ -3796,6 +3822,9 @@ renderCards();
   <div style="background:#fff;border-radius:14px;padding:26px 24px;max-width:340px;width:90%;text-align:center;position:relative;max-height:88vh;overflow-y:auto;">
     <!-- One student per page. The name lives on the page, so it changes
          as you swipe; no heading is needed above it. -->
+    <!-- Shown when the signed-in address matches no student. Silence here
+         used to read as "the app is broken" (owner, 2026-09-03). -->
+    <div id="profileNoMatch" style="display:none;text-align:left;background:#fff8f8;border:1px solid #EA0000;border-left:4px solid #EA0000;border-radius:8px;padding:14px 16px;margin-bottom:16px;"></div>
     <div id="profilePager" style="display:flex;align-items:flex-start;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:14px;transition:height .18s ease;"></div>
     <div id="profileDots" style="display:none;justify-content:center;gap:6px;margin:10px 0 4px;"></div>
     <!-- Then the code, behind a tap. Most visits never need it. -->
