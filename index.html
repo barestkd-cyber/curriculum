@@ -3605,16 +3605,50 @@ const DOJO_LOC = { lat: 32.2770485, lng: -95.2790403, radiusM: 250 };
 let CI_CACHE = { kids: [], allKids: [] };
 
 function ciYMD(){ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+/* How far the phone is from the mat, in metres. */
+function ciDistanceM(lat, lng){
+  const R=6371000, toR=function(x){ return x*Math.PI/180; };
+  const dLat=toR(lat-DOJO_LOC.lat), dLng=toR(lng-DOJO_LOC.lng);
+  const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(toR(DOJO_LOC.lat))*Math.cos(toR(lat))*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+
+/* Ask the phone where it is, and report WHY if it will not say.
+ *
+ * The browser gives three different failures and this used to call all of
+ * them "denied", so a parent with location switched on was told to switch
+ * it on (owner, 2026-09-08). Codes 2 and 3 are what a phone does inside a
+ * metal building, which is exactly where these check-ins happen.
+ *
+ * Two passes: take a recent fix if the phone already has one, otherwise ask
+ * the GPS properly and give it 25 seconds rather than 8. A refusal skips
+ * the second pass - there is no sense waiting on an answer already given. */
 function ciGeoCheck(){
   return new Promise(function(res){
     if(!navigator.geolocation) return res({ ok:false, reason:'unavailable' });
-    navigator.geolocation.getCurrentPosition(function(p){
-      const R=6371000, toR=function(x){ return x*Math.PI/180; };
-      const dLat=toR(p.coords.latitude-DOJO_LOC.lat), dLng=toR(p.coords.longitude-DOJO_LOC.lng);
-      const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(toR(DOJO_LOC.lat))*Math.cos(toR(p.coords.latitude))*Math.sin(dLng/2)*Math.sin(dLng/2);
-      const dist=2*R*Math.asin(Math.sqrt(a));
-      res(dist <= DOJO_LOC.radiusM ? { ok:true } : { ok:false, reason:'far' });
-    }, function(){ res({ ok:false, reason:'denied' }); }, {timeout:8000, maximumAge:60000});
+
+    let settled = false;
+    const done = function(v){ if(!settled){ settled = true; res(v); } };
+    const judge = function(p){
+      const d = ciDistanceM(p.coords.latitude, p.coords.longitude);
+      done(d <= DOJO_LOC.radiusM ? { ok:true, dist:d } : { ok:false, reason:'far', dist:d });
+    };
+    const why = function(err){
+      if(!err) return 'nofix';
+      if(err.code === 1) return 'denied';    // they really did refuse
+      if(err.code === 3) return 'timeout';   // on, but did not answer in time
+      return 'nofix';                        // on, but cannot see the sky
+    };
+
+    // Pass 1: a fix from the last five minutes is good enough to stand on a
+    // mat with, and on a phone that has been outdoors it comes back at once.
+    navigator.geolocation.getCurrentPosition(judge, function(err1){
+      if(why(err1) === 'denied') return done({ ok:false, reason:'denied' });
+      // Pass 2: ask properly, with enough time for a cold indoor fix.
+      navigator.geolocation.getCurrentPosition(judge, function(err2){
+        done({ ok:false, reason: why(err2) });
+      }, { timeout:25000, maximumAge:0, enableHighAccuracy:true });
+    }, { timeout:10000, maximumAge:300000, enableHighAccuracy:false });
   });
 }
 
@@ -3762,9 +3796,15 @@ async function curToggleCheckin(ki, ci){
     if(DOJO_LOC.lat!=null){
       const geo = await ciGeoCheck();
       if(!geo.ok){
+        // Each failure gets its own sentence. Telling somebody to turn on a
+        // setting that is already on is the most annoying thing an app can do.
         alert(geo.reason==='far'
           ? "Looks like you're not at the studio yet. Check in when you arrive — or scan at the front desk."
-          : "Location is required to check in from the app. Allow location access and try again — or scan at the front desk.");
+          : geo.reason==='denied'
+          ? "This site doesn't have permission to use your location. Turn it on for this site in your browser settings, then try again — or just scan at the front desk."
+          : geo.reason==='unavailable'
+          ? "This browser can't do location. Scan at the front desk instead."
+          : "Couldn't get your location — that happens indoors sometimes, even with location switched on. Try again, or step near a door or window. Scanning at the front desk always works.");
         return;
       }
       source = 'parent_gps';
