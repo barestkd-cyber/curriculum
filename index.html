@@ -3596,6 +3596,28 @@ function ci12h(t){
   return String(t) + (h < 12 ? ' AM' : ' PM');
 }
 const CHECKIN_GATE = {'prog-cubs':'Cubs','prog-juniors':'Juniors','prog-teen':'Teens/Adults','prog-forms':['Juniors','Teens/Adults'],'prog-sparring':['Juniors','Teens/Adults'],'prog-kick':'Kickboxing','prog-ampd':"AMP'D",'prog-leader':'Leadership'};
+// Which enrollment roster(s) a class admits. Mirrors the CRM's
+// attProgramsFor exactly (ECOSYSTEM §16.6g): schedule_template.program +
+// divisions are the source of truth, and the colour table is only the
+// fallback for a row those columns have not reached. The colour alone
+// cannot tell Jiu Jitsu from Kickboxing (both prog-kick) or Little Kickers
+// from Cubs (both prog-cubs) - which is how check-ins came to be recorded
+// under the wrong program (audit A14). BaresCRM/tests/schedule-programs
+// holds this copy to the CRM's, the kiosk's and the others.
+function ciProgramsFor(r){
+  if(r && r.program){
+    if(r.program === 'Taekwondo'){
+      const d = (r.divisions||[]).filter(function(x){ return x==='Juniors' || x==='Teens/Adults'; });
+      if(d.length) return d;
+      // a Taekwondo row with no divisions is half-authored - fall through
+    } else {
+      return [r.program];   // enrollment keys are the program names, on purpose
+    }
+  }
+  if(r && r.prog_css === 'prog-kick') return [/(jiu|bjj)/i.test(String(r.label||'')) ? 'Jiu Jitsu' : 'Kickboxing'];
+  const g = CHECKIN_GATE[r && r.prog_css] || 'Juniors';
+  return Array.isArray(g) ? g : [g];
+}
 // 1901 Deerbrook Dr, Tyler TX 75703 (Paluxy Plaza). Location is a FENCE for
 // the app path (per Mr. Bares): outside the radius, denied, or unavailable
 // means the check-in is refused with a pointer to the front-desk kiosk — a
@@ -3680,7 +3702,7 @@ async function loadProfileKids(){
     const [ks, en, sch, at] = await Promise.all([
       sb.from('students').select('id,name,rank').in('id', ids),
       sb.from('enrollments').select('student_id,program').in('student_id', ids).eq('status','active'),
-      sb.from('schedule_template').select('day,time,label,belt,prog_css'),
+      sb.from('schedule_template').select('day,time,label,belt,prog_css,program,divisions'),
       sb.from('attendance').select('id,student_id,class_label').in('student_id', ids).eq('class_date', ciYMD())
     ]);
     const kids = ks.data||[], enr = en.data||[], att = at.data||[];
@@ -3713,11 +3735,12 @@ async function loadProfileKids(){
       // roster that was never set up quite right.
       const classes = todays.map(function(r){
         const lbl = labelOf(r);
-        const g = CHECKIN_GATE[r.prog_css]||'Juniors';
-        const list = Array.isArray(g)?g:[g];
+        const list = ciProgramsFor(r);
         const inProg = list.some(function(p){ return progs.indexOf(p)!==-1; });
         const hit = att.find(function(a){ return a.student_id===k.id && a.class_label===lbl; });
-        return { label: lbl, disp: dispOf(r), gate: Array.isArray(g)?g[0]:g, attId: hit?hit.id:null,
+        // gate is what attendance records. The first of the class's
+        // programs, the register's own convention for Forms and Sparring.
+        return { label: lbl, disp: dispOf(r), gate: list[0], attId: hit?hit.id:null,
                  rostered: inProg && ciBeltOk(r.belt, k.rank) };
       });
       return { id: k.id, name: k.name||'Student', rank: k.rank||'', classes: classes };
