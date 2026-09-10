@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
 <title>BaresTKD Curriculum</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -3178,9 +3179,20 @@ async function doAuthSignup(){
   const confirm = document.getElementById('authSignupConfirm').value;
   const err = document.getElementById('authSignupError');
   err.style.display = 'none';
+  err.style.color = '#EA0000';
 
   const { user, error } = await BTKD.signUp({ name, email, password: pw, confirm });
   if(error){ err.textContent = error; err.style.display = 'block'; return; }
+
+  // With email confirmation switched on, the account exists but has no
+  // session until the link in that email is clicked. Say so, instead of
+  // opening an app that cannot load anything yet.
+  if(!(await BTKD.getSession())){
+    err.style.color = '#1E7B34';
+    err.textContent = 'Account created. Check your email for the link to confirm it, then sign in.';
+    err.style.display = 'block';
+    return;
+  }
 
   currentUser = user;
   closeAuthModal();
