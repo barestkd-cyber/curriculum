@@ -282,7 +282,7 @@
   </div>
   <div style="display:flex;align-items:center;gap:8px;">
     <div id="authBtn" onclick="handleAuthBtn()" style="cursor:pointer;padding:6px 14px;border:1px solid var(--gold);color:var(--gold);font-family:'Montserrat',sans-serif;font-size:0.75rem;letter-spacing:1px;text-transform:uppercase;font-weight:600;transition:all 0.2s;">Sign In</div>
-    <button id="adminLockBtn" onclick="toggleAdminLogin()" style="display:none;background:none;border:none;font-size:1.1rem;cursor:pointer;opacity:0.35;padding:4px 8px;" title="Admin">🔒</button>
+    <button id="adminLockBtn" onclick="openAdmin()" style="display:none;background:none;border:none;font-size:1.1rem;cursor:pointer;opacity:0.8;padding:4px 8px;" title="Admin">🔓</button>
   </div>
 </header>
 
@@ -327,19 +327,6 @@
     </div>
 
     <button onclick="closeAuthModal()" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:1.1rem;cursor:pointer;color:#888;">✕</button>
-  </div>
-</div>
-
-<!-- ADMIN LOGIN MODAL -->
-<div id="adminLoginModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:400;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:12px;padding:28px 24px;width:90%;max-width:340px;">
-    <div style="font-family:'Archivo Black',sans-serif;font-size:1.2rem;letter-spacing:2px;margin-bottom:16px;color:#111;">Admin Login</div>
-    <input id="adminPwInput" type="password" placeholder="Password" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:0.9rem;box-sizing:border-box;margin-bottom:10px;">
-    <div id="adminPwError" style="color:#EA0000;font-size:0.75rem;margin-bottom:8px;display:none;">Incorrect password.</div>
-    <div style="display:flex;gap:8px;">
-      <button onclick="checkAdminPassword()" style="flex:1;padding:10px;background:#B88A00;color:white;border:none;border-radius:6px;font-family:'Archivo Black',sans-serif;letter-spacing:1px;font-size:0.9rem;cursor:pointer;">Login</button>
-      <button onclick="document.getElementById('adminLoginModal').style.display='none'" style="padding:10px 14px;background:#f5f5f5;color:#555;border:none;border-radius:6px;cursor:pointer;">Cancel</button>
-    </div>
   </div>
 </div>
 
@@ -2060,8 +2047,6 @@ function closeTechModal(e) {
 // keep working through the one canonical, shared session.
 const sb = BTKD.sb;
 
-const ADMIN_PASSWORD = 'BaresTKD2026';
-let isAdmin = false;
 
 // ─── ANNOUNCEMENTS ───────────────────────────────────────────
 async function loadAnnouncements() {
@@ -2076,29 +2061,15 @@ async function loadAnnouncements() {
 // (called from the auth bootstrap at the bottom of the file, after login)
 
 // ─── ADMIN ────────────────────────────────────────────────────
-function toggleAdminLogin() {
-  if (isAdmin) { openAdminPanel(); return; }
-  document.getElementById('adminPwInput').value = '';
-  document.getElementById('adminPwError').style.display = 'none';
-  document.getElementById('adminLoginModal').style.display = 'flex';
-  setTimeout(function() { document.getElementById('adminPwInput').focus(); }, 100);
+// Opens the announcements panel for staff. The role comes from profiles at
+// sign-in (loadUserProfile) and is what the announcements RLS checks, so the
+// button and the wall agree. This replaced a password modal compared against
+// a string in this public file: it kept nobody out, and once in git history
+// it never can.
+function openAdmin() {
+  if (currentRole !== 'admin' && currentRole !== 'instructor') return;
+  openAdminPanel();
 }
-
-function checkAdminPassword() {
-  if (document.getElementById('adminPwInput').value === ADMIN_PASSWORD) {
-    isAdmin = true;
-    document.getElementById('adminLoginModal').style.display = 'none';
-    document.getElementById('adminLockBtn').textContent = '🔓';
-    document.getElementById('adminLockBtn').style.opacity = '0.8';
-    openAdminPanel();
-  } else {
-    document.getElementById('adminPwError').style.display = 'block';
-  }
-}
-
-document.getElementById('adminPwInput').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') checkAdminPassword();
-});
 
 async function openAdminPanel() {
   document.getElementById('adminPanelModal').style.display = 'flex';
@@ -3109,13 +3080,9 @@ async function loadUserProfile(){
     btn.textContent = 'Profile';
     btn.onclick = openProfile;
   }
-  // Admin lock button only exists for staff; students never see it.
+  // Admin panel button only exists for staff; students never see it.
   const lockBtn = document.getElementById('adminLockBtn');
   if(lockBtn) lockBtn.style.display = (currentRole === 'admin' || currentRole === 'instructor') ? '' : 'none';
-  if(currentRole === 'admin'){
-    isAdmin = true;
-    if(lockBtn){ lockBtn.textContent = '🔓'; lockBtn.style.opacity = '0.8'; }
-  }
 }
 
 function handleAuthBtn(){
@@ -3563,7 +3530,7 @@ function printQrCodes(){
 function closeProfile(){ document.getElementById('profileModal').style.display = 'none'; document.body.classList.remove('qr-printing'); }
 function doProfileSignOut(){
   BTKD.signOut();
-  currentUser = null; currentRole = null; isAdmin = false;
+  currentUser = null; currentRole = null;
   closeProfile();
   document.getElementById('curr-login').style.display = 'flex';
   document.getElementById('curr-loading').style.display = 'none';
