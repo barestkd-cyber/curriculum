@@ -1669,6 +1669,17 @@ async function hydrateByDaySchedule(){
   } catch(e){ return; }
   if(!rows.length) return;
 
+  // A class with a start or end date (schedule_template.starts_on / ends_on)
+  // is only on the grid for the weeks it meets. Wednesday Kickboxing was added
+  // 2026-10-21 to start 10/28, and must not show the week before.
+  {
+    const ws = currStudentWeekStart();
+    const we = new Date(ws); we.setDate(we.getDate() + 6);
+    const wsY = currLocalYMD(ws), weY = currLocalYMD(we);
+    rows = rows.filter(r => (!r.starts_on || String(r.starts_on) <= weY) && (!r.ends_on || String(r.ends_on) >= wsY));
+    if(!rows.length) return;
+  }
+
   // Shared class plans for the current student week (rolls over Monday 8 AM)
   const sharedMap = {};
   try {
