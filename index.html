@@ -1286,12 +1286,10 @@ function renderRotationInline() {
         if (last && last.cycles.length < 2 && sameForms(last.cycles[0], c)) last.cycles.push(c);
         else rotations.push({ cycles: [c] });
       });
+      // Each rotation is one box with a card per cycle in it (owner, 11/20:
+      // "do the second cycle in the rotation as its own cards in the same box").
       futureCyclesList = rotations.map(r => ({
-        label: r.cycles.map(c => c.name || 'Upcoming Cycle').join(' · '),
-        groups: groupsOf(r.cycles[0]),
-        dates: r.cycles.length > 1
-          ? r.cycles.map((c, i) => 'Cycle ' + (i + 1) + ': ' + cycleDates(c)).join(' · ')
-          : cycleDates(r.cycles[0])
+        cycles: r.cycles.map(c => ({ label: c.name || 'Upcoming Cycle', dates: cycleDates(c), groups: groupsOf(c) }))
       }));
     }
   }
@@ -1340,24 +1338,27 @@ function renderRotationInline() {
     + '</div>'
     + '</div>';
 
-  // Next rotation
-  html += '<div style="border:2px solid #e8d080;border-radius:10px;padding:14px;margin-bottom:20px;">'
-    + '<div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:2px;color:#B88A00;font-weight:700;margin-bottom:12px;">Next Rotation</div>';
-
-  if(!futureCyclesList.length) {
-    html += '<div style="font-size:0.8rem;color:#777;">The next cycle\'s dates aren\'t set yet.</div>';
-  }
-  futureCyclesList.forEach(function(cycle) {
-    html += '<div style="background:#fff;border:1px solid #e8e0cc;border-radius:8px;padding:12px 14px;margin-bottom:8px;">'
+  // Next rotation: one box per rotation, a card per cycle inside it.
+  var rotationBox = function(title, inner) {
+    return '<div style="border:2px solid #e8d080;border-radius:10px;padding:14px;margin-bottom:20px;">'
+      + '<div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:2px;color:#B88A00;font-weight:700;margin-bottom:12px;">' + title + '</div>'
+      + inner + '</div>';
+  };
+  var cycleCard = function(cycle) {
+    return '<div style="background:#fff;border:1px solid #e8e0cc;border-radius:8px;padding:12px 14px;margin-bottom:8px;">'
       + '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;margin-bottom:10px;">'
       + '<div style="font-family:Archivo Black,sans-serif;font-size:0.88rem;letter-spacing:2px;color:#B88A00;">' + cycle.label + '</div>'
       + '<div style="font-size:0.72rem;color:#aaa;margin-left:auto">' + cycle.dates + '</div>'
       + '</div>'
       + groupCards(cycle.groups || nextGroups)
       + '</div>';
+  };
+  if(!futureCyclesList.length) {
+    html += rotationBox('Next Rotation', '<div style="font-size:0.8rem;color:#777;">The next cycle\'s dates aren\'t set yet.</div>');
+  }
+  futureCyclesList.forEach(function(rot, i) {
+    html += rotationBox(i === 0 ? 'Next Rotation' : 'Rotation After That', rot.cycles.map(cycleCard).join(''));
   });
-
-  html += '</div>';
 
   // ── CURRENT CYCLE STRIPES ──────────────────────────────────
   var cycleStripes = [
