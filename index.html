@@ -1270,13 +1270,28 @@ function renderRotationInline() {
         { group: 'Advanced',     form: c.form_adv,      korean: formMap[c.form_adv]||'' },
       ]; };
       nextGroups = groupsOf(future[0]);
-      futureCyclesList = future.map(c => ({
-        label: c.name || 'Upcoming Cycle',
-        groups: groupsOf(c), // each future cycle shows ITS OWN forms
-        // A cycle with no awards date yet shows when it starts, not a dangling range.
-        dates: c.start_date ? (c.awards_date
-          ? new Date(c.start_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' – ' + new Date(c.awards_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
-          : 'Starts ' + new Date(c.start_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})) : 'Dates to be set'
+      // A cycle with no awards date yet shows when it starts, not a dangling range.
+      const fmtD = ymd => new Date(ymd+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      const cycleDates = c => c.start_date
+        ? (c.awards_date ? fmtD(c.start_date) + ' – ' + fmtD(c.awards_date) : 'Starts ' + fmtD(c.start_date))
+        : 'Dates to be set';
+      // One rotation is two cycles on the same forms (owner, 2026-11-20: "a
+      // rotation is 2 cycles so put 2 cycles worth of forms into one
+      // rotation"). Consecutive upcoming cycles on the same forms share one
+      // card: the forms once, each cycle's dates under it.
+      const sameForms = (a, b) => a.form_beginner === b.form_beginner && a.form_inter === b.form_inter && a.form_adv === b.form_adv;
+      const rotations = [];
+      future.forEach(c => {
+        const last = rotations[rotations.length - 1];
+        if (last && last.cycles.length < 2 && sameForms(last.cycles[0], c)) last.cycles.push(c);
+        else rotations.push({ cycles: [c] });
+      });
+      futureCyclesList = rotations.map(r => ({
+        label: r.cycles.map(c => c.name || 'Upcoming Cycle').join(' · '),
+        groups: groupsOf(r.cycles[0]),
+        dates: r.cycles.length > 1
+          ? r.cycles.map((c, i) => 'Cycle ' + (i + 1) + ': ' + cycleDates(c)).join(' · ')
+          : cycleDates(r.cycles[0])
       }));
     }
   }
@@ -1334,7 +1349,7 @@ function renderRotationInline() {
   }
   futureCyclesList.forEach(function(cycle) {
     html += '<div style="background:#fff;border:1px solid #e8e0cc;border-radius:8px;padding:12px 14px;margin-bottom:8px;">'
-      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">'
+      + '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;margin-bottom:10px;">'
       + '<div style="font-family:Archivo Black,sans-serif;font-size:0.88rem;letter-spacing:2px;color:#B88A00;">' + cycle.label + '</div>'
       + '<div style="font-size:0.72rem;color:#aaa;margin-left:auto">' + cycle.dates + '</div>'
       + '</div>'
