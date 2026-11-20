@@ -1202,7 +1202,7 @@ function renderRotationInline() {
         : '';
       out += '<div style="background:' + c.bg + ';border:1px solid ' + c.border + ';border-radius:6px;padding:9px 11px;">'
         + '<div style="font-size:0.58rem;text-transform:uppercase;letter-spacing:2px;color:' + c.text + ';font-weight:700;margin-bottom:3px">' + g.group + '</div>'
-        + '<div style="font-size:0.9rem;font-weight:700;color:#111">' + g.form + '</div>'
+        + '<div style="font-size:0.9rem;font-weight:700;color:#111">' + (g.form || 'To be announced') + '</div>'
         + '<div style="font-size:0.7rem;color:' + c.text + '">' + g.korean + '</div>'
         + watchBtn + '</div>';
     });
@@ -1269,7 +1269,10 @@ function renderRotationInline() {
       futureCyclesList = future.map(c => ({
         label: c.name || 'Upcoming Cycle',
         groups: groupsOf(c), // each future cycle shows ITS OWN forms
-        dates: c.start_date ? new Date(c.start_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + (c.awards_date ? ' – ' + new Date(c.awards_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '') : ''
+        // A cycle with no awards date yet shows when it starts, not a dangling range.
+        dates: c.start_date ? (c.awards_date
+          ? new Date(c.start_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' – ' + new Date(c.awards_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+          : 'Starts ' + new Date(c.start_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})) : ''
       }));
     }
   }
@@ -1289,12 +1292,9 @@ function renderRotationInline() {
       { group: 'Advanced',     form: 'Hwa-Rang', korean: '화랑' },
     ];
   }
-  if(!futureCyclesList.length) {
-    futureCyclesList = [
-      { label: 'Cycle 1', dates: 'Apr 21 – Jun 21, 2026' },
-      { label: 'Cycle 2', dates: 'Jun 23 – Aug 30, 2026' },
-    ];
-  }
+  // No upcoming cycle saved in Class Plan: say so. This used to fall back to
+  // "Apr 21 – Jun 21, 2026", placeholder dates that read as real ones long
+  // after they had passed (owner, 2026-11-20).
 
   // Current cycle card
   var testingHtml = '';
@@ -1305,7 +1305,7 @@ function renderRotationInline() {
       return '<div>' + t.label + ' — ' + ds + '</div>';
     }).join('');
   } else {
-    testingHtml = 'Cubs — April 10<br>Juniors &amp; Adults — April 11<br>Late Testing — April 14';
+    testingHtml = 'Testing dates coming soon.';
   }
 
   html += '<div style="background:#fff;border:2px solid #4caf50;border-radius:8px;padding:14px 16px;margin-bottom:20px;">'
@@ -1325,6 +1325,9 @@ function renderRotationInline() {
   html += '<div style="border:2px solid #e8d080;border-radius:10px;padding:14px;margin-bottom:20px;">'
     + '<div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:2px;color:#B88A00;font-weight:700;margin-bottom:12px;">Next Rotation</div>';
 
+  if(!futureCyclesList.length) {
+    html += '<div style="font-size:0.8rem;color:#777;">The next cycle\'s dates aren\'t set yet.</div>';
+  }
   futureCyclesList.forEach(function(cycle) {
     html += '<div style="background:#fff;border:1px solid #e8e0cc;border-radius:8px;padding:12px 14px;margin-bottom:8px;">'
       + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">'
