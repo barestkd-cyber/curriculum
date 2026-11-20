@@ -1251,9 +1251,13 @@ function renderRotationInline() {
     // Only genuinely upcoming cycles — without the date bound, every finished
     // cycle in the table renders as "Next Rotation".
     const today0 = new Date(); today0.setHours(0,0,0,0);
+    // A cycle planned in Class Plan before it has dates (owner, 2026-11-20: the
+    // cycle after Spring 2027 keeps Spring's forms) is upcoming too; it lists
+    // after the dated ones.
+    const startMs = c => c.start_date ? new Date(c.start_date+'T00:00:00').getTime() : Infinity;
     const future = window._cycleData
-      .filter(c => !c.is_active && c.start_date && new Date(c.start_date+'T00:00:00') >= today0)
-      .sort((a,b) => new Date(a.start_date+'T00:00:00') - new Date(b.start_date+'T00:00:00'));
+      .filter(c => !c.is_active && (!c.start_date || startMs(c) >= today0.getTime()))
+      .sort((a,b) => startMs(a) === startMs(b) ? 0 : (startMs(a) < startMs(b) ? -1 : 1));
     if(future.length) {
       const formMap = {
         'Dan-Gun': '단군', 'Do-San': '도산', 'Won-Hyo': '원효', 'Yul-Guk': '율곡',
@@ -1272,7 +1276,7 @@ function renderRotationInline() {
         // A cycle with no awards date yet shows when it starts, not a dangling range.
         dates: c.start_date ? (c.awards_date
           ? new Date(c.start_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' – ' + new Date(c.awards_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
-          : 'Starts ' + new Date(c.start_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})) : ''
+          : 'Starts ' + new Date(c.start_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})) : 'Dates to be set'
       }));
     }
   }
