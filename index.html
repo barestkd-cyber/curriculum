@@ -988,9 +988,15 @@ function buildCard(belt, idx) {
 
 
     // Content comes from the active cycle or the belt's form where there is
-    // a row for it, and from the catalogue otherwise (see belts.js).
+    // a row for it, and from the catalogue otherwise (see belts.js). A stripe
+    // that rotates by cycle shows only the active cycle's content: its
+    // catalogue text is an earlier cycle's (the Worlds 2026 sparring combo),
+    // and a cycle with nothing set yet is blank (owner, 2026-11-20).
     const beltForm = (belt.forms && belt.forms[0] && belt.forms[0].name) || null;
-    const sc = function(st){ return window.stripeContent ? window.stripeContent(st, beltForm, CURRIC) : (st.details || []); };
+    const sc = function(st){
+      if (st.rot === 'cycle') return (CURRIC && CURRIC.cycle && CURRIC.cycle[st.cat]) || [];
+      return window.stripeContent ? window.stripeContent(st, beltForm, CURRIC) : (st.details || []);
+    };
 
     // Black stripe detail panels
     blackStripes.forEach((s, si) => {
@@ -1214,6 +1220,7 @@ function renderRotationInline() {
   var nextGroups = [];
   var cycleEndDate = '';
   var cycleStartDate = '';
+  var cycleName = '';
   var testingDates = [];
   var futureCyclesList = [];
 
@@ -1221,6 +1228,7 @@ function renderRotationInline() {
   if(window._cycleData) {
     const active = window._cycleData.find(c => c.is_active);
     if(active) {
+      cycleName = active.name || '';
       const formMap = {
         'Dan-Gun': '단군', 'Do-San': '도산', 'Won-Hyo': '원효', 'Yul-Guk': '율곡',
         'Jun-Gun': '중근', 'Joong-Gun': '중근', 'Toi-Gye': '퇴계',
@@ -1277,8 +1285,8 @@ function renderRotationInline() {
         : 'Dates to be set';
       // One rotation is two cycles on the same forms (owner, 2026-11-20: "a
       // rotation is 2 cycles so put 2 cycles worth of forms into one
-      // rotation"). Consecutive upcoming cycles on the same forms share one
-      // card: the forms once, each cycle's dates under it.
+      // rotation"). Consecutive upcoming cycles on the same forms, two at
+      // most, make one rotation.
       const sameForms = (a, b) => a.form_beginner === b.form_beginner && a.form_inter === b.form_inter && a.form_adv === b.form_adv;
       const rotations = [];
       future.forEach(c => {
@@ -1361,51 +1369,48 @@ function renderRotationInline() {
   });
 
   // ── CURRENT CYCLE STRIPES ──────────────────────────────────
+  // Named and dated for the active cycle. What each stripe covers comes from
+  // that cycle's rotating content (cycle_curriculum, the rows the belt cards
+  // read), so a cycle with nothing set yet shows its stripes blank. This list
+  // used to be typed in here and still showed the Worlds 2026 material in
+  // Winter 2027 (owner, 2026-11-20: "label rotating stripes for this cycle
+  // and list the dates of the cycle ... have all of them blank for now").
+  // Same order as showStripePurpose, which holds each stripe's Purpose text.
   var cycleStripes = [
-    {
-      color: '#EA0000', label: 'Red — Self Defense',
-      content: 'Block incoming punch, parry to grab, under the shoulder grab',
-      purpose: 'Designed to be simple, fast to learn, and adaptable to real situations. We draw inspiration from military and law enforcement training, covering both empty-handed and weapon defense scenarios. The goal is to give you tools you can actually use, not just in the gym.'
-    },
-    {
-      color: '#f5830a', label: 'Orange — Mitt Combo',
-      content: 'Jab, slip, hook punch (#1 slip #3) — Note: slip to left side',
-      purpose: 'Rooted in boxing, the mitt combo strips away the kicks and puts full focus on the hands. Punching precision, head movement, and upper body defense are skills that get buried when we are always throwing combinations with our legs. This is where we develop them.'
-    },
-    {
-      color: '#8b3fa8', label: 'Purple — Power Combo',
-      content: 'Skipping roundhouse, reverse punch (#2), roundhouse',
-      purpose: 'The power combo is your chance to hit with intent. Every technique is thrown for maximum impact, not the controlled contact we use with sparring partners. Many of these combinations draw from Muay Thai, where full power on every strike is the standard. This is how you build real hitting ability.'
-    },
-    {
-      color: '#3a9e3a', label: 'Green — Sparring Combo',
-      content: '#1 slide sidekick, hand fake, #2 front kick, spin sidekick, feint spin kick, #1 hook or step behind hook — (Green belt and above)',
-      purpose: 'Combinations built for live sparring. These are designed to flow, chain, and score, not just look good on pads. The goal is to make these automatic so you stop thinking and start reacting.'
-    },
-    {
-      color: '#2a6fdb', label: 'Blue — Kicks',
-      content: 'Rotates with form — see form cards above',
-      purpose: 'The kicks required to demonstrate proficiency at your rank in Taekwondo. Each belt introduces new tools. Mastery of these kicks is what separates a student who knows the techniques from one who owns them.'
-    },
-    {
-      color: '#7a4e1e', label: 'Brown — Board Breaking',
-      content: '— (Brown belt and above)',
-      purpose: 'Board breaking measures your ability to deliver power to a stationary target with precision. It tells us more than just physical strength. It reveals mental focus and emotional composure under pressure. That readiness is what earns the next rank.'
-    },
+    { cat: 'self-defense',   color: '#EA0000', label: 'Red — Self Defense' },
+    { cat: 'mitt-combo',     color: '#f5830a', label: 'Orange — Mitt Combo' },
+    { cat: 'power-combo',    color: '#8b3fa8', label: 'Purple — Power Combo' },
+    { cat: 'sparring-combo', color: '#3a9e3a', label: 'Green — Sparring Combo', who: 'Green belt and above' },
+    { cat: 'kicks',          color: '#2a6fdb', label: 'Blue — Kicks' },
+    { cat: 'board-breaking', color: '#7a4e1e', label: 'Brown — Board Breaking', who: 'Brown belt and above' },
   ];
+  var escT = function(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function(ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]; });
+  };
+  var stripeNow = function(cat) {
+    var blocks = (CURRIC && CURRIC.cycle && CURRIC.cycle[cat]) || [];
+    return blocks.map(function(b) {
+      var items = (b.items || []).map(escT).join(', ');
+      return (b.title ? '<div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:1px;color:#999;font-weight:700;">' + escT(b.title) + '</div>' : '') + items;
+    }).join('<br>');
+  };
 
-  html += '<div style="font-family:Archivo Black,sans-serif;font-size:1rem;letter-spacing:3px;color:#B88A00;margin-bottom:10px;">Rotating Stripes — Current Cycle</div>';
+  html += '<div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-bottom:10px;">'
+    + '<div style="font-family:Archivo Black,sans-serif;font-size:1rem;letter-spacing:3px;color:#B88A00;">Rotating Stripes — ' + escT(cycleName || 'Current Cycle') + '</div>'
+    + (cycleStartDate ? '<div style="font-size:0.72rem;color:#888;margin-left:auto;">' + cycleStartDate + (cycleEndDate ? ' – ' + cycleEndDate : '') + '</div>' : '')
+    + '</div>';
   html += '<div style="background:#fff;border:1px solid #e8e0cc;border-radius:12px;overflow:hidden;margin-bottom:20px;">';
   cycleStripes.forEach(function(s, i) {
-    var safeId = 'stripe_' + i;
+    var now = stripeNow(s.cat);
     html += '<div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-bottom:' + (i < cycleStripes.length-1 ? '1px solid #f0ece4' : 'none') + ';">'
       + '<div style="width:44px;height:26px;border-radius:5px;background:' + s.color + ';flex-shrink:0;margin-top:2px;"></div>'
       + '<div style="flex:1;">'
       + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:3px;">'
-      + '<div style="font-size:0.88rem;font-weight:700;color:#111;">' + s.label + '</div>'
+      + '<div style="font-size:0.88rem;font-weight:700;color:#111;">' + s.label
+      + (s.who ? ' <span style="font-size:0.7rem;font-weight:400;color:#999;white-space:nowrap;">' + s.who + '</span>' : '') + '</div>'
       + '<button onclick="showStripePurpose(' + i + ')" style="font-size:0.65rem;color:#2a6fdb;text-decoration:underline;background:none;border:none;cursor:pointer;white-space:nowrap;padding:0;font-family:inherit;flex-shrink:0;">Purpose</button>'
       + '</div>'
-      + '<div style="font-size:0.78rem;color:#555;line-height:1.5;">' + s.content + '</div>'
+      + (now ? '<div style="font-size:0.78rem;color:#555;line-height:1.5;">' + now + '</div>' : '')
       + '</div>'
       + '</div>';
   });
@@ -3878,9 +3883,17 @@ async function loadCycleData() {
 let CURRIC = null;
 (async function(){
   await initAuth();
-  // Rotating content, then redraw so the cards show it. The search box is
-  // empty at startup, and the catalogue stands in if this never arrives.
-  try{ CURRIC = await window.loadCurriculum(sb); renderCards(activeFilter, ''); }catch(e){ console.error('curriculum load', e); }
+  // Rotating content, then redraw what is on screen so it shows it. This
+  // used to call renderCards(activeFilter), a name that does not exist here,
+  // so the redraw threw and rotating content waited for the next tab tap.
+  try{
+    CURRIC = await window.loadCurriculum(sb);
+    const tab = document.querySelector('.filter-tab.active');
+    const view = (tab && tab.dataset && tab.dataset.value) || 'all';
+    if (view === 'rotation') renderRotationInline();
+    else if (['manual','cubs','events','videos','boards'].indexOf(view) < 0)
+      renderCards(view, (document.getElementById('searchInput').value || '').toLowerCase());
+  }catch(e){ console.error('curriculum load', e); }
   loadCycleData();
   loadEventsData();
   loadClosures();
