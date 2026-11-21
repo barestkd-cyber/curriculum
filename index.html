@@ -1377,10 +1377,11 @@ function renderRotationInline() {
   // and list the dates of the cycle ... have all of them blank for now").
   // Order and "who" notes are his (owner, 2026-11-20: "Blue, red, orange,
   // purple, green, brown. Orange and purple listed as orange belt and
-  // above"). showStripePurpose holds each stripe's Purpose text, by category.
+  // above", then "Red and blue labeled for everyone"). showStripePurpose
+  // holds each stripe's Purpose text, by category.
   var cycleStripes = [
-    { cat: 'kicks',          color: '#2a6fdb', label: 'Blue — Kicks' },
-    { cat: 'self-defense',   color: '#EA0000', label: 'Red — Self Defense' },
+    { cat: 'kicks',          color: '#2a6fdb', label: 'Blue — Kicks',           who: 'Everyone' },
+    { cat: 'self-defense',   color: '#EA0000', label: 'Red — Self Defense',     who: 'Everyone' },
     { cat: 'mitt-combo',     color: '#f5830a', label: 'Orange — Mitt Combo',    who: 'Orange belt and above' },
     { cat: 'power-combo',    color: '#8b3fa8', label: 'Purple — Power Combo',   who: 'Orange belt and above' },
     { cat: 'sparring-combo', color: '#3a9e3a', label: 'Green — Sparring Combo', who: 'Green belt and above' },
