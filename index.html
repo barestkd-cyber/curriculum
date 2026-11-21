@@ -1375,13 +1375,15 @@ function renderRotationInline() {
   // used to be typed in here and still showed the Worlds 2026 material in
   // Winter 2027 (owner, 2026-11-20: "label rotating stripes for this cycle
   // and list the dates of the cycle ... have all of them blank for now").
-  // Same order as showStripePurpose, which holds each stripe's Purpose text.
+  // Order and "who" notes are his (owner, 2026-11-20: "Blue, red, orange,
+  // purple, green, brown. Orange and purple listed as orange belt and
+  // above"). showStripePurpose holds each stripe's Purpose text, by category.
   var cycleStripes = [
-    { cat: 'self-defense',   color: '#EA0000', label: 'Red — Self Defense' },
-    { cat: 'mitt-combo',     color: '#f5830a', label: 'Orange — Mitt Combo' },
-    { cat: 'power-combo',    color: '#8b3fa8', label: 'Purple — Power Combo' },
-    { cat: 'sparring-combo', color: '#3a9e3a', label: 'Green — Sparring Combo', who: 'Green belt and above' },
     { cat: 'kicks',          color: '#2a6fdb', label: 'Blue — Kicks' },
+    { cat: 'self-defense',   color: '#EA0000', label: 'Red — Self Defense' },
+    { cat: 'mitt-combo',     color: '#f5830a', label: 'Orange — Mitt Combo',    who: 'Orange belt and above' },
+    { cat: 'power-combo',    color: '#8b3fa8', label: 'Purple — Power Combo',   who: 'Orange belt and above' },
+    { cat: 'sparring-combo', color: '#3a9e3a', label: 'Green — Sparring Combo', who: 'Green belt and above' },
     { cat: 'board-breaking', color: '#7a4e1e', label: 'Brown — Board Breaking', who: 'Brown belt and above' },
   ];
   var escT = function(s) {
@@ -1408,7 +1410,7 @@ function renderRotationInline() {
       + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:3px;">'
       + '<div style="font-size:0.88rem;font-weight:700;color:#111;">' + s.label
       + (s.who ? ' <span style="font-size:0.7rem;font-weight:400;color:#999;white-space:nowrap;">' + s.who + '</span>' : '') + '</div>'
-      + '<button onclick="showStripePurpose(' + i + ')" style="font-size:0.65rem;color:#2a6fdb;text-decoration:underline;background:none;border:none;cursor:pointer;white-space:nowrap;padding:0;font-family:inherit;flex-shrink:0;">Purpose</button>'
+      + '<button onclick="showStripePurpose(\'' + s.cat + '\')" style="font-size:0.65rem;color:#2a6fdb;text-decoration:underline;background:none;border:none;cursor:pointer;white-space:nowrap;padding:0;font-family:inherit;flex-shrink:0;">Purpose</button>'
       + '</div>'
       + (now ? '<div style="font-size:0.78rem;color:#555;line-height:1.5;">' + now + '</div>' : '')
       + '</div>'
@@ -1908,16 +1910,20 @@ const FORM_TECHNIQUES = {
 
 
 
-function showStripePurpose(idx) {
-  var stripes = [];
-  stripes[0] = { label: 'Red — Self Defense', purpose: 'Designed to be simple, fast to learn, and adaptable to real situations. We draw inspiration from military and law enforcement training, covering both empty-handed and weapon defense scenarios. The goal is to give you tools you can actually use, not just in the gym.' };
-  stripes[1] = { label: 'Orange — Mitt Combo', purpose: 'Rooted in boxing, the mitt combo strips away the kicks and puts full focus on the hands. Punching precision, head movement, and upper body defense are skills that get buried when we are always throwing combinations with our legs. This is where we develop them.' };
-  stripes[2] = { label: 'Purple — Power Combo', purpose: 'The power combo is your chance to hit with intent. Every technique is thrown for maximum impact, not the controlled contact we use with sparring partners. Many of these combinations draw from Muay Thai, where full power on every strike is the standard. This is how you build real hitting ability.' };
-  stripes[3] = { label: 'Green — Sparring Combo', purpose: 'Combinations built for live sparring. These are designed to flow, chain, and score, not just look good on pads. The goal is to make these automatic so you stop thinking and start reacting.' };
-  stripes[4] = { label: 'Blue — Kicks', purpose: 'The kicks required to demonstrate proficiency at your rank in Taekwondo. Each belt introduces new tools. Mastery of these kicks is what separates a student who knows the techniques from one who owns them.' };
-  stripes[5] = { label: 'Brown — Board Breaking', purpose: 'Board breaking measures your ability to deliver power to a stationary target with precision. It tells us more than just physical strength. It reveals mental focus and emotional composure under pressure. That readiness is what earns the next rank.' };
-  document.getElementById('stripePurposeTitle').textContent = stripes[idx].label;
-  document.getElementById('stripePurposeText').textContent = stripes[idx].purpose;
+// Keyed by stripe category, so the Rotation tab can list the stripes in any
+// order without the Purpose text drifting onto the wrong one.
+function showStripePurpose(cat) {
+  var stripes = {};
+  stripes['self-defense'] = { label: 'Red — Self Defense', purpose:'Designed to be simple, fast to learn, and adaptable to real situations. We draw inspiration from military and law enforcement training, covering both empty-handed and weapon defense scenarios. The goal is to give you tools you can actually use, not just in the gym.' };
+  stripes['mitt-combo'] = { label: 'Orange — Mitt Combo', purpose: 'Rooted in boxing, the mitt combo strips away the kicks and puts full focus on the hands. Punching precision, head movement, and upper body defense are skills that get buried when we are always throwing combinations with our legs. This is where we develop them.' };
+  stripes['power-combo'] = { label: 'Purple — Power Combo', purpose: 'The power combo is your chance to hit with intent. Every technique is thrown for maximum impact, not the controlled contact we use with sparring partners. Many of these combinations draw from Muay Thai, where full power on every strike is the standard. This is how you build real hitting ability.' };
+  stripes['sparring-combo'] = { label: 'Green — Sparring Combo', purpose: 'Combinations built for live sparring. These are designed to flow, chain, and score, not just look good on pads. The goal is to make these automatic so you stop thinking and start reacting.' };
+  stripes['kicks'] = { label: 'Blue — Kicks', purpose: 'The kicks required to demonstrate proficiency at your rank in Taekwondo. Each belt introduces new tools. Mastery of these kicks is what separates a student who knows the techniques from one who owns them.' };
+  stripes['board-breaking'] = { label: 'Brown — Board Breaking', purpose: 'Board breaking measures your ability to deliver power to a stationary target with precision. It tells us more than just physical strength. It reveals mental focus and emotional composure under pressure. That readiness is what earns the next rank.' };
+  var s = stripes[cat];
+  if (!s) return;
+  document.getElementById('stripePurposeTitle').textContent = s.label;
+  document.getElementById('stripePurposeText').textContent = s.purpose;
   document.getElementById('stripePurposeOverlay').style.display = 'block';
   document.getElementById('stripePurposeModal').style.display = 'block';
 }
