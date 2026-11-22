@@ -1517,142 +1517,10 @@ function renderEvents() {
   var html = '';
 
   // ── CLASS SCHEDULE ─────────────────────────────────────────
-  // ── BY TIME OF DAY TABLE
-  // The hardcoded table below is the fallback; hydrateByDaySchedule() replaces
-  // the #byDaySchedule contents with the live schedule_template when rows exist.
-  html += '<div id="byDaySchedule">';
-  html += '<div style="font-family:Archivo Black,sans-serif;font-size:1rem;letter-spacing:3px;color:#B88A00;margin-bottom:8px;">By Day</div>';
-  html += '<div style="font-size:0.65rem;color:#888;margin-bottom:6px;font-style:italic;">Updated January 2026</div>';
-  html += '<div style="overflow-x:auto;margin-bottom:20px;">'
-    + '<table style="width:100%;border-collapse:collapse;font-size:0.72rem;min-width:420px;">'
-    + '<thead><tr style="background:#1a3a6b;color:white;">'
-    + '<th style="padding:6px 4px;text-align:center;">TIME</th>'
-    + '<th style="padding:6px 4px;text-align:center;">MON</th>'
-    + '<th style="padding:6px 4px;text-align:center;">TUES</th>'
-    + '<th style="padding:6px 4px;text-align:center;">WED</th>'
-    + '<th style="padding:6px 4px;text-align:center;">THUR</th>'
-    + '<th style="padding:6px 4px;text-align:center;">FRI</th>'
-    + '<th style="padding:6px 4px;text-align:center;">SAT</th>'
-    + '</tr></thead><tbody>'
-    + '<tr style="background:#fff;">'
-    + '<td style="padding:5px 4px;text-align:center;font-weight:700;border:1px solid #e8e0cc;">4:00</td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#B88A00;font-weight:700;font-size:0.65rem;">ASK ABOUT<br>PRIVATE<br>LESSONS</td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;">CUBS<br><span style="color:#111;font-size:0.65rem;">Preschl</span></td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;font-size:0.65rem;">4:15<br>BR-BLK<br><span style="color:#111;">Juniors</span></td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;"></td>'
-    + '<td rowspan="6" style="padding:5px 4px;border:1px solid #e8e0cc;"></td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;font-size:0.65rem;">9:30<br>CUBS</td>'
-    + '</tr>'
-    + '<tr style="background:#fffbf0;">'
-    + '<td style="padding:5px 4px;text-align:center;font-weight:700;border:1px solid #e8e0cc;">4:30</td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#2a7a2a;font-weight:700;font-size:0.65rem;">AMP&#39;D</td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;font-size:0.65rem;">WHI-ORG<br><span style="color:#111;">Juniors</span></td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;font-size:0.65rem;">4:45<br>WHI-BLU<br><span style="color:#111;">Juniors</span></td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;font-size:0.65rem;">CUBS<br><span style="color:#111;">Preschl</span></td>'
-    
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;font-size:0.65rem;">10:00<br>ALL<br>Juniors</td>'
-    + '</tr>'
-    + '<tr style="background:#fff;">'
-    + '<td style="padding:5px 4px;text-align:center;font-weight:700;border:1px solid #e8e0cc;">5:00</td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;font-size:0.65rem;">GR-BLK<br><span style="color:#111;">Juniors</span></td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#2a7a2a;font-weight:700;font-size:0.65rem;">5:15<br>AMP&#39;D</td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;font-size:0.65rem;">5:30<br>CUBS<br><span style="color:#111;">Preschl</span></td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#2a7a2a;font-weight:700;font-size:0.65rem;">AMP&#39;D</td>'
-    
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;font-size:0.65rem;">11:00<br>TEENS/<br>ADULTS</td>'
-    + '</tr>'
-    + '<tr style="background:#fffbf0;">'
-    + '<td style="padding:5px 4px;text-align:center;font-weight:700;border:1px solid #e8e0cc;">5:30</td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#1a3a6b;font-weight:700;font-size:0.65rem;">KICKBOXING<br><span style="color:#111;">13+</span></td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#7b2d8b;font-weight:700;font-size:0.65rem;">5:45<br>LEADER<br>TRAINING</td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#B88A00;font-weight:700;font-size:0.65rem;">ASK ABOUT<br>PRIVATE<br>LESSONS</td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;font-size:0.65rem;">FORMS<br><span style="color:#111;">All Juniors &amp;<br>Teens/Adults</span></td>'
-    
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;"></td>'
-    + '</tr>'
-    + '<tr style="background:#fff;">'
-    + '<td style="padding:5px 4px;text-align:center;font-weight:700;border:1px solid #e8e0cc;">6:15</td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;font-size:0.65rem;">6:45<br>TEENS/<br>ADULTS</td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;font-size:0.65rem;">GR-BLK<br><span style="color:#111;">Juniors</span></td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;"></td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;font-size:0.65rem;">SPARRING<br><span style="color:#111;">All Juniors &amp;<br>Teens/Adults</span></td>'
-    
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;"></td>'
-    + '</tr>'
-    + '<tr style="background:#fffbf0;">'
-    + '<td style="padding:5px 4px;text-align:center;font-weight:700;border:1px solid #e8e0cc;">7:15</td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;"></td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#EA0000;font-weight:700;font-size:0.65rem;">TEENS/<br>ADULTS</td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;"></td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;color:#1a3a6b;font-weight:700;font-size:0.65rem;">7:00<br>KICKBOXING<br><span style="color:#111;">13+</span></td>'
-    + '<td style="padding:5px 4px;text-align:center;border:1px solid #e8e0cc;"></td>'
-    + '</tr>'
-    + '</tbody></table></div>'
-    ;
-  html += '</div>'; // close #byDaySchedule
-
-  // ── BY PROGRAM TABLE
-  html += '<div style="font-family:Archivo Black,sans-serif;font-size:1rem;letter-spacing:3px;color:#B88A00;margin-bottom:6px;">By Program</div>';
-  html += '<div style="font-size:0.65rem;color:#888;margin-bottom:6px;font-style:italic;">Updated January 2026</div>';
-  html += '<div style="overflow-x:auto;margin-bottom:8px;">'
-    + '<table style="width:100%;border-collapse:collapse;font-size:0.68rem;min-width:420px;">'
-    + '<thead><tr style="background:#1a3a6b;color:white;">'
-    + '<th style="padding:5px 3px;text-align:center;"></th>'
-    + '<th style="padding:5px 3px;text-align:center;color:#EA0000;background:#fff;">CUBS</th>'
-    + '<th style="padding:5px 3px;text-align:center;color:#EA0000;background:#fff;">WHI-ORG</th>'
-    + '<th style="padding:5px 3px;text-align:center;color:#1a3a6b;background:#fff;">GR-BLU</th>'
-    + '<th style="padding:5px 3px;text-align:center;color:#1a3a6b;background:#fff;">BR-BLK</th>'
-    + '<th style="padding:5px 3px;text-align:center;color:#2a7a2a;background:#fff;">AMP&#39;D</th>'
-    + '<th style="padding:5px 3px;text-align:center;color:#EA0000;background:#fff;">TEENS/<br>ADULTS</th>'
-    + '</tr></thead><tbody>'
-    + '<tr style="background:#fff;">'
-    + '<td style="padding:5px 3px;text-align:center;font-weight:700;border:1px solid #e8e0cc;">M</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;"></td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;"></td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Monday<br>5pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Monday<br>5pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Monday<br>4:30pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Monday<br>6:45pm</td>'
-    + '</tr>'
-    + '<tr style="background:#fffbf0;">'
-    + '<td style="padding:5px 3px;text-align:center;font-weight:700;border:1px solid #e8e0cc;">T</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Tuesday<br>4pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Tuesday<br>4:30pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Tuesday<br>6:15pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Tuesday<br>6:15pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Tuesday<br>5:15pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Tuesday<br>7:15pm</td>'
-    + '</tr>'
-    + '<tr style="background:#fff;">'
-    + '<td style="padding:5px 3px;text-align:center;font-weight:700;border:1px solid #e8e0cc;">W</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Wednesday<br>5:30pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Wednesday<br>4:45pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Wednesday<br>4:45pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;font-size:0.6rem;">Wednesday<br>4:15pm<br>(30min)</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;"></td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;"></td>'
-    + '</tr>'
-    + '<tr style="background:#fffbf0;">'
-    + '<td style="padding:5px 3px;text-align:center;font-weight:700;border:1px solid #e8e0cc;">TH</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Thursday<br>4:30pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;font-size:0.6rem;">Thursday<br>5:30pm &amp;<br>6:15pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;font-size:0.6rem;">Thursday<br>5:30pm &amp;<br>6:15pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;font-size:0.6rem;">Thursday<br>5:30pm &amp;<br>6:15pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Thursday<br>5:00pm</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;font-size:0.6rem;">Thursday<br>5:30pm &amp;<br>6:15pm</td>'
-    + '</tr>'
-    + '<tr style="background:#fff;">'
-    + '<td style="padding:5px 3px;text-align:center;font-weight:700;border:1px solid #e8e0cc;">S</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Saturday<br>9:30am</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Saturday<br>10am</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Saturday<br>10am</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Saturday<br>10am</td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;"></td>'
-    + '<td style="padding:5px 3px;text-align:center;border:1px solid #e8e0cc;">Saturday<br>11am</td>'
-    + '</tr>'
-    + '</tbody></table></div>'
-    + '<div style="font-size:0.7rem;color:#555;margin-bottom:4px;"><span style="color:#1a3a6b;font-weight:700;">KICKBOXING</span> Mon: 5:45 &nbsp;|&nbsp; Thurs: 7:00</div>'
-    + '<div style="font-size:0.7rem;color:#555;margin-bottom:20px;"><span style="color:#7b2d8b;font-weight:700;">LEADER TRAINING</span> Tuesday: 5:45</div>';
+  // Empty on purpose until the live schedule is in (owner, 2026-11-22: no typed
+  // stand-in). hydrateByDaySchedule() draws both views from schedule_template.
+  html += '<div id="byDaySchedule"></div>';
+  html += '<div id="byProgramSchedule"></div>';
 
   html += '<div style="font-family:Archivo Black,sans-serif;font-size:1.3rem;letter-spacing:3px;color:#B88A00;margin-top:32px;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid #e8e0cc;">Events &amp; Announcements</div>';
 
@@ -1705,42 +1573,70 @@ function renderEvents() {
   hydrateByDaySchedule();
 }
 
-// Replace the hardcoded By Day fallback with the live schedule that classplan
-// publishes into schedule_template. Read-only; Mon–Sat columns, one row per
-// distinct time sorted by time_h/time_m, showing time, label, and belt. If
-// nothing is published yet (zero rows) or the query fails, the hardcoded
-// fallback already rendered into #byDaySchedule is left untouched.
-async function hydrateByDaySchedule(){
+// The live schedule that classplan publishes into schedule_template, drawn two
+// ways: By Day (the one-page grid) and By Program. Nothing shows until it is
+// here (owner, 2026-11-22). The page redraws as its other parts load, so what
+// has been read is kept for a few minutes and drawn at once.
+let _schedCache = null, _schedLoading = null;
+const SCHED_FRESH_MS = 5 * 60 * 1000;
+function hydrateByDaySchedule(){
+  if(!document.getElementById('byDaySchedule')) return;
+  if(_schedCache){
+    drawSchedule();
+    if(Date.now() - _schedCache.at < SCHED_FRESH_MS) return;
+  }
+  if(_schedLoading) return;
+  // No answer is a failure too, or the page just stays blank.
+  const slow = setTimeout(scheduleFailed, 15000);
+  const done = ok => {
+    clearTimeout(slow);
+    _schedLoading = null;
+    try { if(ok){ drawSchedule(); return; } } catch(e){ console.error('schedule draw:', e); }
+    scheduleFailed();
+  };
+  _schedLoading = loadSchedule().then(done, e => { console.error('schedule load:', e); done(false); });
+}
+
+function scheduleFailed(){
   const box = document.getElementById('byDaySchedule');
-  if(!box) return;
+  if(box && !box.firstChild) box.innerHTML = '<div style="font-size:0.8rem;color:#888;margin-bottom:20px;">The schedule isn\'t loading right now. Refresh the page to try again.</div>';
+}
+
+async function loadSchedule(){
   let rows;
   try {
     const { data, error } = await BTKD.sb.from('schedule_template').select('*');
-    if(error) return;
+    if(error) throw error;
     rows = data || [];
-  } catch(e){ return; }
-  if(!rows.length) return;
+  } catch(e){ console.error('schedule load:', e); return false; }
 
   // A class with a start or end date (schedule_template.starts_on / ends_on)
   // is only on the grid for the weeks it meets. Wednesday Kickboxing was added
   // 2026-10-21 to start 10/28, and must not show the week before.
-  {
-    const ws = currStudentWeekStart();
-    const we = new Date(ws); we.setDate(we.getDate() + 6);
-    const wsY = currLocalYMD(ws), weY = currLocalYMD(we);
-    rows = rows.filter(r => (!r.starts_on || String(r.starts_on) <= weY) && (!r.ends_on || String(r.ends_on) >= wsY));
-    if(!rows.length) return;
-  }
+  const weekStart = currStudentWeekStart();
+  const we = new Date(weekStart); we.setDate(we.getDate() + 6);
+  const wsY = currLocalYMD(weekStart), weY = currLocalYMD(we);
+  rows = rows.filter(r => (!r.starts_on || String(r.starts_on) <= weY) && (!r.ends_on || String(r.ends_on) >= wsY));
+  if(!rows.length) return false;
 
   // Shared class plans for the current student week (rolls over Monday 8 AM)
   const sharedMap = {};
   try {
-    const wsStr = currLocalYMD(currStudentWeekStart());
     const { data: plans } = await BTKD.sb.from('class_plans')
       .select('day,time,label,belt,plan_content,shared_with_students')
-      .eq('week_start', wsStr).eq('shared_with_students', true);
+      .eq('week_start', wsY).eq('shared_with_students', true);
     (plans||[]).forEach(p => { sharedMap[p.day + '-' + p.time] = p; });
   } catch(e){ /* no shared plans → grid still renders, just nothing clickable */ }
+
+  _schedCache = { at: Date.now(), rows, sharedMap, weekStart };
+  return true;
+}
+
+function drawSchedule(){
+  const box = document.getElementById('byDaySchedule');
+  if(!box || !_schedCache) return;
+  const { rows, sharedMap, weekStart } = _schedCache;
+  BTKDGrid.inject();
 
   const schedule = rows.map(r => ({
     day: r.day, time: r.time, timeH: r.time_h, timeM: r.time_m,
@@ -1755,10 +1651,8 @@ async function hydrateByDaySchedule(){
     + '</div>'
     + '<div style="overflow-x:auto;margin-bottom:20px;"><div id="curr-sched-grid"></div></div>';
 
-  const weekStart = currStudentWeekStart();
   _currGridState = { schedule, weekStart };
 
-  BTKDGrid.inject();
   BTKDGrid.render({
     container: document.getElementById('curr-sched-grid'),
     schedule,
@@ -1774,6 +1668,57 @@ async function hydrateByDaySchedule(){
     canAssign: false,
     pxPerMin: 1.4
   });
+
+  const prog = document.getElementById('byProgramSchedule');
+  if(prog) prog.innerHTML = byProgramHtml(rows);
+}
+
+// By Program: the same classes by who they are for, never typed. A rank column
+// lists a Juniors class when the class takes every rank in the column; a class
+// marked All, or with no range, takes everyone.
+const BYPROG_RANGE = { 'WHI-ORG':[0,2], 'WHI-BLU':[0,5], 'ORG-BLK':[2,8], 'GR-BLK':[3,8], 'BR-BLK':[6,8] };
+const BYPROG_COLS = [
+  { head:'CUBS', color:'#EA0000', is: r => r.program === 'Cubs' },
+  { head:'WHI-ORG', color:'#EA0000', is: r => byProgTakes(r, 'Juniors', [0,2]) },
+  { head:'GR-BLU', color:'#1a3a6b', is: r => byProgTakes(r, 'Juniors', [3,5]) },
+  { head:'BR-BLK', color:'#1a3a6b', is: r => byProgTakes(r, 'Juniors', [6,8]) },
+  { head:'AMP&#39;D', color:'#2a7a2a', is: r => r.program === "AMP'D" },
+  { head:'TEENS/<br>ADULTS', color:'#EA0000', is: r => byProgTakes(r, 'Teens/Adults') },
+];
+const BYPROG_OTHER = { 'Kickboxing':'#1a3a6b', 'Jiu Jitsu':'#6d4c41', 'Leadership':'#7b2d8b', 'Little Kickers':'#e0701a' };
+function byProgTakes(r, division, tiers){
+  if(r.program !== 'Taekwondo') return false;
+  const who = Array.isArray(r.divisions) && r.divisions.length ? r.divisions
+    : [/junior|forms|sparring/i.test(r.label||'') ? 'Juniors' : '', /teen|adult|forms|sparring/i.test(r.label||'') ? 'Teens/Adults' : ''];
+  if(who.indexOf(division) < 0) return false;
+  const range = tiers && BYPROG_RANGE[String(r.belt||'').toUpperCase()];
+  return !range || (range[0] <= tiers[0] && range[1] >= tiers[1]);
+}
+function byProgTime(r){ const h = r.time_h % 12 || 12; return h + ':' + String(r.time_m).padStart(2,'0') + (r.time_h < 12 ? ' AM' : ' PM'); }
+function byProgramHtml(rows){
+  const DAYS = ['M','T','W','TH','F','S','SU'], SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const list = rows.slice().sort((a,b) => (a.day-b.day) || (a.time_h*60+a.time_m) - (b.time_h*60+b.time_m));
+  const inTable = list.filter(r => BYPROG_COLS.some(c => c.is(r)));
+  const days = [...new Set(inTable.map(r => r.day))];
+  const td = 'padding:5px 3px;text-align:center;border:1px solid #e8e0cc;';
+  const cell = r => byProgTime(r) + (/^(Forms|Sparring)$/.test(r.label||'') ? '<br><span style="font-size:0.58rem;color:#777;">' + currEsc(r.label) + '</span>' : '');
+  let h = '<div style="font-family:Archivo Black,sans-serif;font-size:1rem;letter-spacing:3px;color:#B88A00;margin-bottom:6px;">By Program</div>'
+    + '<div style="overflow-x:auto;margin-bottom:8px;"><table style="width:100%;border-collapse:collapse;font-size:0.68rem;min-width:420px;">'
+    + '<thead><tr><th style="padding:5px 3px;background:#1a3a6b;"></th>'
+    + BYPROG_COLS.map(c => '<th style="padding:5px 3px;text-align:center;color:' + c.color + ';background:#fff;">' + c.head + '</th>').join('')
+    + '</tr></thead><tbody>';
+  days.forEach((d, i) => {
+    h += '<tr style="background:' + (i % 2 ? '#fffbf0' : '#fff') + ';"><td style="' + td + 'font-weight:700;">' + DAYS[d] + '</td>'
+      + BYPROG_COLS.map(c => '<td style="' + td + '">' + inTable.filter(r => r.day === d && c.is(r)).map(cell).join('<br>') + '</td>').join('') + '</tr>';
+  });
+  h += '</tbody></table></div>';
+  const others = [...new Set(list.filter(r => !BYPROG_COLS.some(c => c.is(r))).map(r => r.program || r.label))];
+  others.forEach(p => {
+    const when = list.filter(r => (r.program || r.label) === p).map(r => SHORT[r.day] + ' ' + byProgTime(r)).join(' &nbsp;|&nbsp; ');
+    h += '<div style="font-size:0.7rem;color:#555;margin-bottom:4px;"><span style="color:' + (BYPROG_OTHER[p] || '#333') + ';font-weight:700;">' + currEsc(String(p).toUpperCase()) + '</span> '
+      + when + (p === 'Little Kickers' ? ' · in six-week sessions' : '') + '</div>';
+  });
+  return h + '<div style="margin-bottom:20px;"></div>';
 }
 
 // The student-facing "current week" rolls over Monday at 8:00 AM. Before that
