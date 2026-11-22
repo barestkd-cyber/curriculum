@@ -1453,13 +1453,31 @@ async function loadClosures() {
   try {
     var today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
     var r = await sb.from('calendar_events')
-      .select('title,event_date,blocks_classes,blocks_trials,blocks_privates')
+      .select('title,event_date,event_time,blocks_classes,blocks_trials,blocks_privates')
       .eq('type', 'blackout').gte('event_date', today)
       .order('event_date', { ascending: true }).limit(12);
     if (r.error) { console.error('closures load:', r.error); return; }
     BLACKOUTS_LIVE = r.data || [];
     if (document.getElementById('byDaySchedule')) renderEvents();
   } catch(e) { console.error('closures load error:', e); }
+}
+// A closure whose time reads "From 12:00 PM" starts then and the morning
+// stays open (owner, 2026-11-22). Returns "12 PM", or '' for an all-day one.
+function closureFromText(t) {
+  var s = String(t || '').trim().toLowerCase();
+  var min = null;
+  if (s === 'from noon') min = 720;
+  var m = /^from\s+(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\.?$/.exec(s);
+  if (m) {
+    var h = +m[1], mi = m[2] ? +m[2] : 0;
+    if (h >= 1 && h <= 12 && mi <= 59) {
+      if (m[3] === 'a') { if (h === 12) h = 0; } else if (h !== 12) h += 12;
+      min = h * 60 + mi;
+    }
+  }
+  if (min === null) return '';
+  var h24 = Math.floor(min / 60), mm = min % 60, h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return h12 + (mm ? ':' + String(mm).padStart(2, '0') : '') + (h24 < 12 ? ' AM' : ' PM');
 }
 function closureDatePretty(ymd) {
   var p = String(ymd || '').split('-').map(Number);
@@ -1649,7 +1667,9 @@ function renderEvents() {
       if (!b.blocks_trials) open.push('trials still bookable');
       var note = open.length
         ? open.join(' \u00b7 ').replace(/^./, function(c){ return c.toUpperCase(); })
-        : 'No classes, lessons, or trials this day';
+        : (closureFromText(b.event_time)
+            ? 'Closed from ' + closureFromText(b.event_time) + '. Classes before then are still on.'
+            : 'No classes, lessons, or trials this day');
       var safeTitle = String(b.title || 'Closed').replace(/[<>&"]/g, '');
       html += '<div style="background:#fdf3f2;border:1px solid #e6b8b2;border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">'
         + '<div style="background:#fff;border:1px solid #e6b8b2;border-radius:5px;padding:4px 10px;font-size:0.7rem;font-weight:700;color:#b3372c;white-space:nowrap;">' + closureDatePretty(b.event_date) + '</div>'
